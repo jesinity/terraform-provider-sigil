@@ -1,17 +1,17 @@
-# awsnomicon_brew Data Source
+# cloudomen_nomen Data Source
 
 Generates a resource name and its components using provider configuration, optional overrides, and style preferences.
 
 ## Example Usage
 
 ```hcl
-data "awsnomicon_brew" "bucket" {
+data "cloudomen_nomen" "bucket" {
   resource  = "s3"
   qualifier = "mydata"
 }
 
 output "bucket_name" {
-  value = data.awsnomicon_brew.bucket.name
+  value = data.cloudomen_nomen.bucket.name
 }
 ```
 

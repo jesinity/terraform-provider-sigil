@@ -1,4 +1,4 @@
-module github.com/awsnomicon/terraform-provider-awsnomicon
+module github.com/jesinity/terraform-provider-cloudomen
 
 go 1.25.7
 

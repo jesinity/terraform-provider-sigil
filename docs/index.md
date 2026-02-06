@@ -1,4 +1,4 @@
-# awsnomicon Provider
+# cloudomen Provider
 
 Terraform provider for generating consistent AWS resource names based on a shared recipe and style priorities.
 
@@ -7,14 +7,14 @@ Terraform provider for generating consistent AWS resource names based on a share
 ```hcl
 terraform {
   required_providers {
-    awsnomicon = {
-      source  = "awsnomicon/awsnomicon"
+    cloudomen = {
+      source  = "jesinity/cloudomen"
       version = "0.1.0"
     }
   }
 }
 
-provider "awsnomicon" {
+provider "cloudomen" {
   org_prefix = "acme"
   project    = "iac"
   env        = "dev"

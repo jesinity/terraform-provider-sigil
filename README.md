@@ -1,4 +1,4 @@
-# awsnomicon
+# cloudomen
 
 Terraform provider for AWS naming conventions and consistent resource naming.
 
@@ -7,14 +7,14 @@ Terraform provider for AWS naming conventions and consistent resource naming.
 ```hcl
 terraform {
   required_providers {
-    awsnomicon = {
-      source  = "awsnomicon/awsnomicon"
+    cloudomen = {
+      source  = "jesinity/cloudomen"
       version = "0.1.0"
     }
   }
 }
 
-provider "awsnomicon" {
+provider "cloudomen" {
   org_prefix = "acme"
   project    = "iac"
   env        = "dev"
@@ -38,25 +38,25 @@ provider "awsnomicon" {
 }
 ```
 
-## Data Source `awsnomicon_brew`
+## Data Source `cloudomen_nomen`
 
 ### Basic name
 
 ```hcl
-data "awsnomicon_brew" "bucket" {
+data "cloudomen_nomen" "bucket" {
   resource  = "s3"
   qualifier = "mydata"
 }
 
 output "bucket_name" {
-  value = data.awsnomicon_brew.bucket.name
+  value = data.cloudomen_nomen.bucket.name
 }
 ```
 
 ### Override a component
 
 ```hcl
-data "awsnomicon_brew" "bucket" {
+data "cloudomen_nomen" "bucket" {
   resource  = "s3"
   qualifier = "mydata"
 
@@ -70,7 +70,7 @@ data "awsnomicon_brew" "bucket" {
 ### Custom recipe and style priority
 
 ```hcl
-data "awsnomicon_brew" "bucket" {
+data "cloudomen_nomen" "bucket" {
   resource  = "s3"
   qualifier = "mydata"
 

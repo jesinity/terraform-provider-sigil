@@ -2,6 +2,8 @@ package naming
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"regexp"
 	"strings"
 )
@@ -29,6 +31,7 @@ type Config struct {
 	StylePriority          []string
 	ResourceAcronyms        map[string]string
 	ResourceStyleOverrides map[string][]string
+	ResourceConstraints    map[string]ResourceConstraint
 }
 
 type BuildInput struct {
@@ -46,6 +49,18 @@ type BuildResult struct {
 	Parts          []string
 	RegionCode     string
 	ResourceAcronym string
+}
+
+type ResourceConstraint struct {
+	MinLen             int
+	MaxLen             int
+	Pattern            *regexp.Regexp
+	PatternDescription string
+	ForbiddenPrefixes  []string
+	ForbiddenSuffixes  []string
+	ForbiddenSubstrings []string
+	DisallowIPAddress  bool
+	CaseInsensitive    bool
 }
 
 func DefaultRecipe() []string {
@@ -189,6 +204,134 @@ func DefaultResourceStyleOverrides() map[string][]string {
 	}
 }
 
+func DefaultResourceConstraints() map[string]ResourceConstraint {
+	return map[string]ResourceConstraint{
+		"s3": {
+			MinLen:             3,
+			MaxLen:             63,
+			Pattern:            regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
+			PatternDescription: "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
+			ForbiddenPrefixes:  []string{"xn--", "sthree-", "amzn-s3-demo-"},
+			ForbiddenSuffixes:  []string{"-s3alias", "--ol-s3"},
+			ForbiddenSubstrings: []string{".."},
+			DisallowIPAddress:  true,
+		},
+		"s3_bucket": {
+			MinLen:             3,
+			MaxLen:             63,
+			Pattern:            regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
+			PatternDescription: "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
+			ForbiddenPrefixes:  []string{"xn--", "sthree-", "amzn-s3-demo-"},
+			ForbiddenSuffixes:  []string{"-s3alias", "--ol-s3"},
+			ForbiddenSubstrings: []string{".."},
+			DisallowIPAddress:  true,
+		},
+		"role": {
+			MinLen:             1,
+			MaxLen:             64,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"iam_role": {
+			MinLen:             1,
+			MaxLen:             64,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"iam_user": {
+			MinLen:             1,
+			MaxLen:             64,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"iam_group": {
+			MinLen:             1,
+			MaxLen:             128,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"iam_policy": {
+			MinLen:             1,
+			MaxLen:             128,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"role_policy": {
+			MinLen:             1,
+			MaxLen:             128,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
+			PatternDescription: "alphanumeric and the following: +=,.@_-",
+		},
+		"sns": {
+			MinLen:             1,
+			MaxLen:             256,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
+			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO topics must end with .fifo",
+		},
+		"sns_topic": {
+			MinLen:             1,
+			MaxLen:             256,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
+			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO topics must end with .fifo",
+		},
+		"sqs": {
+			MinLen:             1,
+			MaxLen:             80,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
+			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO queues must end with .fifo",
+		},
+		"sqs_queue": {
+			MinLen:             1,
+			MaxLen:             80,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
+			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO queues must end with .fifo",
+		},
+		"lambda": {
+			MinLen:             1,
+			MaxLen:             64,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9-_]+$`),
+			PatternDescription: "letters, numbers, hyphens, and underscores",
+		},
+		"kms_alias": {
+			MinLen:             1,
+			MaxLen:             256,
+			Pattern:            regexp.MustCompile(`^alias/[a-zA-Z0-9/_-]+$`),
+			PatternDescription: "must begin with alias/ and contain only letters, numbers, slashes, underscores, and hyphens",
+			ForbiddenPrefixes:  []string{"alias/aws/"},
+		},
+		"log_group": {
+			MinLen:             1,
+			MaxLen:             512,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_\-/.#]+$`),
+			PatternDescription: "letters, numbers, underscore, hyphen, slash, period, and #",
+			ForbiddenPrefixes:  []string{"aws/"},
+		},
+		"cloudwatch_log_group": {
+			MinLen:             1,
+			MaxLen:             512,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_\-/.#]+$`),
+			PatternDescription: "letters, numbers, underscore, hyphen, slash, period, and #",
+			ForbiddenPrefixes:  []string{"aws/"},
+		},
+		"sec_group": {
+			MinLen:             1,
+			MaxLen:             255,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9 ._\-:/()#,@\[\]+=&;{}!$*]+$`),
+			PatternDescription: "letters, numbers, spaces, and ._-:/()#,@[]+=&;{}!$*",
+			ForbiddenPrefixes:  []string{"sg-"},
+			CaseInsensitive:    true,
+		},
+		"security_group": {
+			MinLen:             1,
+			MaxLen:             255,
+			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9 ._\-:/()#,@\[\]+=&;{}!$*]+$`),
+			PatternDescription: "letters, numbers, spaces, and ._-:/()#,@[]+=&;{}!$*",
+			ForbiddenPrefixes:  []string{"sg-"},
+			CaseInsensitive:    true,
+		},
+	}
+}
+
 func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	regionCode := strings.TrimSpace(cfg.RegionShortCode)
 	if regionCode == "" && strings.TrimSpace(cfg.Region) != "" {
@@ -293,6 +436,9 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
+	if err := validateResourceConstraints(resourceKey, name, cfg.ResourceConstraints); err != nil {
+		return BuildResult{}, err
+	}
 
 	return BuildResult{
 		Name:            name,
@@ -325,6 +471,87 @@ func canonicalComponentKey(key string) string {
 
 func normalizeStyle(style string) string {
 	return strings.ToLower(strings.TrimSpace(style))
+}
+
+func validateResourceConstraints(resourceKey, name string, constraints map[string]ResourceConstraint) error {
+	if resourceKey == "" || len(name) == 0 {
+		return nil
+	}
+	if len(constraints) == 0 {
+		constraints = DefaultResourceConstraints()
+	}
+	c, ok := constraints[resourceKey]
+	if !ok {
+		return nil
+	}
+	if c.MinLen > 0 && len(name) < c.MinLen {
+		return fmt.Errorf("resource %q name %q is shorter than %d characters", resourceKey, name, c.MinLen)
+	}
+	if c.MaxLen > 0 && len(name) > c.MaxLen {
+		return fmt.Errorf("resource %q name %q exceeds %d characters", resourceKey, name, c.MaxLen)
+	}
+	if c.Pattern != nil && !c.Pattern.MatchString(name) {
+		desc := c.PatternDescription
+		if desc == "" {
+			desc = c.Pattern.String()
+		}
+		return fmt.Errorf("resource %q name %q must match: %s", resourceKey, name, desc)
+	}
+	comparisonName := name
+	if c.CaseInsensitive {
+		comparisonName = strings.ToLower(name)
+	}
+	if len(c.ForbiddenPrefixes) > 0 {
+		for _, prefix := range c.ForbiddenPrefixes {
+			if prefix == "" {
+				continue
+			}
+			candidate := prefix
+			if c.CaseInsensitive {
+				candidate = strings.ToLower(prefix)
+			}
+			if strings.HasPrefix(comparisonName, candidate) {
+				return fmt.Errorf("resource %q name %q must not start with prefix %q", resourceKey, name, prefix)
+			}
+		}
+	}
+	if len(c.ForbiddenSuffixes) > 0 {
+		for _, suffix := range c.ForbiddenSuffixes {
+			if suffix == "" {
+				continue
+			}
+			candidate := suffix
+			if c.CaseInsensitive {
+				candidate = strings.ToLower(suffix)
+			}
+			if strings.HasSuffix(comparisonName, candidate) {
+				return fmt.Errorf("resource %q name %q must not end with suffix %q", resourceKey, name, suffix)
+			}
+		}
+	}
+	if len(c.ForbiddenSubstrings) > 0 {
+		for _, sub := range c.ForbiddenSubstrings {
+			if sub == "" {
+				continue
+			}
+			candidate := sub
+			if c.CaseInsensitive {
+				candidate = strings.ToLower(sub)
+			}
+			if strings.Contains(comparisonName, candidate) {
+				return fmt.Errorf("resource %q name %q must not contain %q", resourceKey, name, sub)
+			}
+		}
+	}
+	if c.DisallowIPAddress && isIPv4Address(name) {
+		return fmt.Errorf("resource %q name %q must not be formatted as an IP address", resourceKey, name)
+	}
+	return nil
+}
+
+func isIPv4Address(value string) bool {
+	ip := net.ParseIP(value)
+	return ip != nil && ip.To4() != nil
 }
 
 func normalizeStyles(styles []string) []string {

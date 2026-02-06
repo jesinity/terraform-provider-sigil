@@ -3,17 +3,17 @@ package provider
 import (
 	"context"
 
-	"github.com/awsnomicon/terraform-provider-awsnomicon/internal/naming"
+	"github.com/jesinity/terraform-provider-cloudomen/internal/naming"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type BrewDataSource struct {
+type NomenDataSource struct {
 	providerData *ProviderData
 }
 
-type brewDataSourceModel struct {
+type nomenDataSourceModel struct {
 	Resource        types.String `tfsdk:"resource"`
 	Qualifier       types.String `tfsdk:"qualifier"`
 	Overrides       types.Map    `tfsdk:"overrides"`
@@ -27,15 +27,15 @@ type brewDataSourceModel struct {
 	Parts           types.List   `tfsdk:"parts"`
 }
 
-func NewBrewDataSource() datasource.DataSource {
-	return &BrewDataSource{}
+func NewNomenDataSource() datasource.DataSource {
+	return &NomenDataSource{}
 }
 
-func (d *BrewDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_brew"
+func (d *NomenDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_nomen"
 }
 
-func (d *BrewDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *NomenDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"resource": schema.StringAttribute{
@@ -80,7 +80,7 @@ func (d *BrewDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 	}
 }
 
-func (d *BrewDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+func (d *NomenDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -93,13 +93,13 @@ func (d *BrewDataSource) Configure(_ context.Context, req datasource.ConfigureRe
 	d.providerData = providerData
 }
 
-func (d *BrewDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *NomenDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.providerData == nil {
 		resp.Diagnostics.AddError("Provider not configured", "The provider has not been configured yet.")
 		return
 	}
 
-	var data brewDataSourceModel
+	var data nomenDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return

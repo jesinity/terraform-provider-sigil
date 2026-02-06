@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/awsnomicon/terraform-provider-awsnomicon/internal/naming"
+	"github.com/jesinity/terraform-provider-cloudomen/internal/naming"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type AwsnomiconProvider struct {
+type CloudomenProvider struct {
 	version string
 }
 
@@ -45,16 +45,16 @@ type providerModel struct {
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &AwsnomiconProvider{version: version}
+		return &CloudomenProvider{version: version}
 	}
 }
 
-func (p *AwsnomiconProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "awsnomicon"
+func (p *CloudomenProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "cloudomen"
 	resp.Version = p.version
 }
 
-func (p *AwsnomiconProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *CloudomenProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"org_prefix": schema.StringAttribute{
@@ -100,7 +100,7 @@ func (p *AwsnomiconProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 	}
 }
 
-func (p *AwsnomiconProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *CloudomenProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var config providerModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -198,12 +198,12 @@ func (p *AwsnomiconProvider) Configure(ctx context.Context, req provider.Configu
 	resp.ResourceData = data
 }
 
-func (p *AwsnomiconProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+func (p *CloudomenProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewBrewDataSource,
+		NewNomenDataSource,
 	}
 }
 
-func (p *AwsnomiconProvider) Resources(_ context.Context) []func() resource.Resource {
+func (p *CloudomenProvider) Resources(_ context.Context) []func() resource.Resource {
 	return nil
 }
