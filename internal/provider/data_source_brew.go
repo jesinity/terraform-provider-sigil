@@ -1,0 +1,175 @@
+package provider
+
+import (
+	"context"
+
+	"github.com/awsnomicon/terraform-provider-awsnomicon/internal/naming"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+type BrewDataSource struct {
+	providerData *ProviderData
+}
+
+type brewDataSourceModel struct {
+	Resource        types.String `tfsdk:"resource"`
+	Qualifier       types.String `tfsdk:"qualifier"`
+	Overrides       types.Map    `tfsdk:"overrides"`
+	Recipe          types.List   `tfsdk:"recipe"`
+	StylePriority   types.List   `tfsdk:"style_priority"`
+	Name            types.String `tfsdk:"name"`
+	Style           types.String `tfsdk:"style"`
+	RegionCode      types.String `tfsdk:"region_code"`
+	ResourceAcronym types.String `tfsdk:"resource_acronym"`
+	Components      types.Map    `tfsdk:"components"`
+	Parts           types.List   `tfsdk:"parts"`
+}
+
+func NewBrewDataSource() datasource.DataSource {
+	return &BrewDataSource{}
+}
+
+func (d *BrewDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_brew"
+}
+
+func (d *BrewDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"resource": schema.StringAttribute{
+				Required: true,
+			},
+			"qualifier": schema.StringAttribute{
+				Optional: true,
+			},
+			"overrides": schema.MapAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"recipe": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"style_priority": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"name": schema.StringAttribute{
+				Computed: true,
+			},
+			"style": schema.StringAttribute{
+				Computed: true,
+			},
+			"region_code": schema.StringAttribute{
+				Computed: true,
+			},
+			"resource_acronym": schema.StringAttribute{
+				Computed: true,
+			},
+			"components": schema.MapAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+			"parts": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+		},
+	}
+}
+
+func (d *BrewDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	providerData, ok := req.ProviderData.(*ProviderData)
+	if !ok {
+		return
+	}
+
+	d.providerData = providerData
+}
+
+func (d *BrewDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	if d.providerData == nil {
+		resp.Diagnostics.AddError("Provider not configured", "The provider has not been configured yet.")
+		return
+	}
+
+	var data brewDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	overrides := map[string]string{}
+	if !data.Overrides.IsNull() && !data.Overrides.IsUnknown() {
+		resp.Diagnostics.Append(data.Overrides.ElementsAs(ctx, &overrides, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	recipe := []string{}
+	if !data.Recipe.IsNull() && !data.Recipe.IsUnknown() {
+		resp.Diagnostics.Append(data.Recipe.ElementsAs(ctx, &recipe, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	stylePriority := []string{}
+	if !data.StylePriority.IsNull() && !data.StylePriority.IsUnknown() {
+		resp.Diagnostics.Append(data.StylePriority.ElementsAs(ctx, &stylePriority, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	result, err := naming.BuildName(naming.Config{
+		OrgPrefix:              d.providerData.OrgPrefix,
+		Project:                d.providerData.Project,
+		Env:                    d.providerData.Env,
+		Region:                 d.providerData.Region,
+		RegionShortCode:         d.providerData.RegionShortCode,
+		RegionMap:              d.providerData.RegionMap,
+		Recipe:                 d.providerData.Recipe,
+		StylePriority:          d.providerData.StylePriority,
+		ResourceAcronyms:        d.providerData.ResourceAcronyms,
+		ResourceStyleOverrides: d.providerData.ResourceStyleOverrides,
+	}, naming.BuildInput{
+		Resource:      data.Resource.ValueString(),
+		Qualifier:     data.Qualifier.ValueString(),
+		Overrides:     overrides,
+		Recipe:        recipe,
+		StylePriority: stylePriority,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Name build failed", err.Error())
+		return
+	}
+
+	data.Name = types.StringValue(result.Name)
+	data.Style = types.StringValue(result.Style)
+	data.RegionCode = types.StringValue(result.RegionCode)
+	data.ResourceAcronym = types.StringValue(result.ResourceAcronym)
+
+	componentsValue, diags := types.MapValueFrom(ctx, types.StringType, result.Components)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.Components = componentsValue
+
+	partsValue, diags := types.ListValueFrom(ctx, types.StringType, result.Parts)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.Parts = partsValue
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}

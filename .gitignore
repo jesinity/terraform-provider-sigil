@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go build artifacts
+/bin/
+/build/
+/dist/
+/coverage/
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.test
+*.out
+*.prof
+*.pprof
+*.cover
+coverage.out
+
+# Logs and temp
+*.log
+*.tmp
+.tmp/
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+crash.log
+crash.*.log
+
+# Go workspaces
+/go.work
+/go.work.sum

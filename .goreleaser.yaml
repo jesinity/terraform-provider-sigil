@@ -1,0 +1,28 @@
+version: 2
+
+builds:
+  - id: terraform-provider-awsnomicon
+    main: ./main.go
+    binary: terraform-provider-awsnomicon
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: zip
+    name_template: "terraform-provider-awsnomicon_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "terraform-provider-awsnomicon_{{ .Version }}_SHA256SUMS"
+
+release:
+  prerelease: auto
