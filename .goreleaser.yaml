@@ -32,7 +32,6 @@ signs:
       - "--yes"
       - "--pinentry-mode"
       - "loopback"
-      - "--armor"
       - "--detach-sign"
       - "--local-user"
       - "{{ .Env.GPG_FINGERPRINT }}"
