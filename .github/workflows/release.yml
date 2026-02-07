@@ -24,12 +24,14 @@ jobs:
           cache: true
 
       - name: Import GPG key
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_FINGERPRINT != '' }}
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (signed)
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_FINGERPRINT != '' }}
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -39,3 +41,12 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
+
+      - name: Run GoReleaser (unsigned)
+        if: ${{ secrets.GPG_PRIVATE_KEY == '' || secrets.GPG_FINGERPRINT == '' }}
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean --skip=sign
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
