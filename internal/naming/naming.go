@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	StyleDashed    = "dashed"
+	StyleDashed     = "dashed"
 	StyleUnderscore = "underscore"
-	StyleStraight  = "straight"
-	StylePascal    = "pascal"
-	StyleCamel     = "camel"
+	StyleStraight   = "straight"
+	StylePascal     = "pascal"
+	StyleCamel      = "camel"
 )
 
 var (
@@ -21,17 +21,19 @@ var (
 )
 
 type Config struct {
-	OrgPrefix              string
-	Project                string
-	Env                    string
-	Region                 string
-	RegionShortCode         string
-	RegionMap              map[string]string
-	Recipe                 []string
-	StylePriority          []string
-	ResourceAcronyms        map[string]string
-	ResourceStyleOverrides map[string][]string
-	ResourceConstraints    map[string]ResourceConstraint
+	OrgPrefix                        string
+	Project                          string
+	Env                              string
+	Region                           string
+	RegionShortCode                  string
+	RegionMap                        map[string]string
+	Recipe                           []string
+	StylePriority                    []string
+	ResourceAcronyms                 map[string]string
+	ResourceStyleOverrides           map[string][]string
+	ResourceConstraints              map[string]ResourceConstraint
+	IgnoreRegionForRegionalResources bool
+	RegionalResources                map[string]bool
 }
 
 type BuildInput struct {
@@ -43,24 +45,24 @@ type BuildInput struct {
 }
 
 type BuildResult struct {
-	Name           string
-	Style          string
-	Components     map[string]string
-	Parts          []string
-	RegionCode     string
+	Name            string
+	Style           string
+	Components      map[string]string
+	Parts           []string
+	RegionCode      string
 	ResourceAcronym string
 }
 
 type ResourceConstraint struct {
-	MinLen             int
-	MaxLen             int
-	Pattern            *regexp.Regexp
-	PatternDescription string
-	ForbiddenPrefixes  []string
-	ForbiddenSuffixes  []string
+	MinLen              int
+	MaxLen              int
+	Pattern             *regexp.Regexp
+	PatternDescription  string
+	ForbiddenPrefixes   []string
+	ForbiddenSuffixes   []string
 	ForbiddenSubstrings []string
-	DisallowIPAddress  bool
-	CaseInsensitive    bool
+	DisallowIPAddress   bool
+	CaseInsensitive     bool
 }
 
 func DefaultRecipe() []string {
@@ -112,89 +114,114 @@ func DefaultRegionMap() map[string]string {
 
 func DefaultResourceAcronyms() map[string]string {
 	return map[string]string{
-		"role":                     "role",
-		"role_policy":              "rlpl",
-		"iam_role":                 "role",
-		"iam_policy":               "iamp",
-		"iam_user":                 "iamu",
-		"iam_group":                "iamg",
-		"s3":                       "s3b",
-		"s3_bucket":                "s3bk",
-		"s3_object":                "s3ob",
-		"s3_access_point":          "s3ap",
-		"s3_table":                 "s3tb",
-		"s3_dir":                   "s3dr",
-		"sns":                      "sns",
-		"sqs":                      "sqs",
-		"ecs_cluster":              "ecsc",
-		"ecs_service":              "ecss",
-		"ecs_task":                 "ecst",
-		"eks":                      "eks",
-		"eks_cluster":              "eksc",
-		"eks_node_group":           "ekng",
-		"msk_cluster":              "mskc",
-		"vpc":                      "vpcn",
-		"subnet":                   "subn",
-		"igw":                      "igtw",
-		"nat_gw":                   "ngtw",
-		"sec_group":                "scgp",
-		"nacl":                     "nacl",
-		"route_table":              "rttb",
-		"elastic_ip":               "elip",
-		"wafv2_web_acl":            "wfac",
-		"wafv2_web_acl_rule":       "wfar",
-		"wafv2_ip_set":             "wfis",
-		"lambda":                   "lmbd",
-		"api_gateway_rest_api":     "agra",
-		"api_gateway_model":        "agmd",
-		"api_gateway_v2":           "agv2",
-		"log_group":                "logg",
-		"cloudwatch_log_group":     "cwlg",
-		"cloudwatch_alarm":         "cwal",
-		"eventbridge_bus":          "evbb",
-		"eventbridge_rule":         "evbr",
-		"step_function":            "stfn",
-		"sfn":                      "stfn",
-		"dynamodb":                 "dydb",
-		"dynamodb_table":           "dydb",
-		"rds":                      "rds",
-		"rds_cluster":              "rdsc",
-		"aurora_cluster":           "arcl",
-		"redshift":                 "rdsh",
-		"elasticache":              "elch",
-		"opensearch":               "opsr",
-		"elasticsearch":            "elsr",
-		"ecr":                      "ecr",
-		"ecs":                      "ecs",
-		"ec2_instance":             "ec2i",
-		"launch_template":          "lcht",
-		"autoscaling_group":        "asgr",
-		"alb":                      "albl",
-		"nlb":                      "nlbl",
-		"elb":                      "elbl",
-		"target_group":             "tgpt",
-		"cloudfront":               "clfr",
-		"route53_zone":             "rt53",
-		"route53_record":           "r53r",
-		"acm_cert":                 "acmc",
-		"kms_key":                  "kmsk",
-		"secretsmanager_secret":    "smse",
-		"ssm_parameter":            "ssmp",
-		"cloudtrail":               "ctra",
-		"guardduty":                "gdty",
-		"config_rule":              "cfrl",
-		"efs":                      "efs",
-		"ebs":                      "ebs",
-		"athena":                   "athn",
-		"glue":                     "glue",
-		"sagemaker":                "sgmk",
-		"codebuild":                "cdbd",
-		"codepipeline":             "cdpl",
-		"codedeploy":               "cddp",
-		"cloudformation_stack":     "cfst",
-		"appsync":                  "apsy",
+		"role":                          "role",
+		"role_policy":                   "rlpl",
+		"iam_role":                      "role",
+		"iam_policy":                    "iamp",
+		"iam_user":                      "iamu",
+		"iam_group":                     "iamg",
+		"s3":                            "s3b",
+		"s3_bucket":                     "s3bk",
+		"s3_object":                     "s3ob",
+		"s3_access_point":               "s3ap",
+		"s3_table":                      "s3tb",
+		"s3_dir":                        "s3dr",
+		"sns":                           "sns",
+		"sqs":                           "sqs",
+		"ecs_cluster":                   "ecsc",
+		"ecs_service":                   "ecss",
+		"ecs_task":                      "ecst",
+		"eks":                           "eks",
+		"eks_cluster":                   "eksc",
+		"eks_node_group":                "ekng",
+		"msk_cluster":                   "mskc",
+		"vpc":                           "vpcn",
+		"subnet":                        "subn",
+		"igw":                           "igtw",
+		"nat_gw":                        "ngtw",
+		"sec_group":                     "scgp",
+		"nacl":                          "nacl",
+		"route_table":                   "rttb",
+		"elastic_ip":                    "elip",
+		"wafv2_web_acl":                 "wfac",
+		"wafv2_web_acl_rule":            "wfar",
+		"wafv2_ip_set":                  "wfis",
+		"lambda":                        "lmbd",
+		"api_gateway_rest_api":          "agra",
+		"api_gateway_model":             "agmd",
+		"api_gateway_v2":                "agv2",
+		"log_group":                     "logg",
+		"cloudwatch_log_group":          "cwlg",
+		"cloudwatch_alarm":              "cwal",
+		"eventbridge_bus":               "evbb",
+		"eventbridge_rule":              "evbr",
+		"step_function":                 "stfn",
+		"sfn":                           "stfn",
+		"dynamodb":                      "dydb",
+		"dynamodb_table":                "dydb",
+		"rds":                           "rds",
+		"rds_cluster":                   "rdsc",
+		"aurora_cluster":                "arcl",
+		"redshift":                      "rdsh",
+		"elasticache":                   "elch",
+		"opensearch":                    "opsr",
+		"elasticsearch":                 "elsr",
+		"ecr":                           "ecr",
+		"ecs":                           "ecs",
+		"ec2_instance":                  "ec2i",
+		"launch_template":               "lcht",
+		"autoscaling_group":             "asgr",
+		"alb":                           "albl",
+		"nlb":                           "nlbl",
+		"elb":                           "elbl",
+		"target_group":                  "tgpt",
+		"cloudfront":                    "clfr",
+		"route53_zone":                  "rt53",
+		"route53_record":                "r53r",
+		"acm_cert":                      "acmc",
+		"kms_key":                       "kmsk",
+		"secretsmanager_secret":         "smse",
+		"ssm_parameter":                 "ssmp",
+		"cloudtrail":                    "ctra",
+		"guardduty":                     "gdty",
+		"config_rule":                   "cfrl",
+		"efs":                           "efs",
+		"ebs":                           "ebs",
+		"athena":                        "athn",
+		"glue":                          "glue",
+		"sagemaker":                     "sgmk",
+		"codebuild":                     "cdbd",
+		"codepipeline":                  "cdpl",
+		"codedeploy":                    "cddp",
+		"cloudformation_stack":          "cfst",
+		"appsync":                       "apsy",
 		"snow_notification_integration": "snti",
 	}
+}
+
+func DefaultGlobalResources() map[string]bool {
+	return map[string]bool{
+		"role":           true,
+		"role_policy":    true,
+		"iam_role":       true,
+		"iam_policy":     true,
+		"iam_user":       true,
+		"iam_group":      true,
+		"cloudfront":     true,
+		"route53_zone":   true,
+		"route53_record": true,
+	}
+}
+
+func DefaultRegionalResources() map[string]bool {
+	regional := map[string]bool{}
+	for key := range DefaultResourceAcronyms() {
+		regional[key] = true
+	}
+	for key := range DefaultGlobalResources() {
+		delete(regional, key)
+	}
+	return regional
 }
 
 func DefaultResourceStyleOverrides() map[string][]string {
@@ -207,24 +234,24 @@ func DefaultResourceStyleOverrides() map[string][]string {
 func DefaultResourceConstraints() map[string]ResourceConstraint {
 	return map[string]ResourceConstraint{
 		"s3": {
-			MinLen:             3,
-			MaxLen:             63,
-			Pattern:            regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
-			PatternDescription: "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
-			ForbiddenPrefixes:  []string{"xn--", "sthree-", "amzn-s3-demo-"},
-			ForbiddenSuffixes:  []string{"-s3alias", "--ol-s3"},
+			MinLen:              3,
+			MaxLen:              63,
+			Pattern:             regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
+			PatternDescription:  "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
+			ForbiddenPrefixes:   []string{"xn--", "sthree-", "amzn-s3-demo-"},
+			ForbiddenSuffixes:   []string{"-s3alias", "--ol-s3"},
 			ForbiddenSubstrings: []string{".."},
-			DisallowIPAddress:  true,
+			DisallowIPAddress:   true,
 		},
 		"s3_bucket": {
-			MinLen:             3,
-			MaxLen:             63,
-			Pattern:            regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
-			PatternDescription: "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
-			ForbiddenPrefixes:  []string{"xn--", "sthree-", "amzn-s3-demo-"},
-			ForbiddenSuffixes:  []string{"-s3alias", "--ol-s3"},
+			MinLen:              3,
+			MaxLen:              63,
+			Pattern:             regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
+			PatternDescription:  "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
+			ForbiddenPrefixes:   []string{"xn--", "sthree-", "amzn-s3-demo-"},
+			ForbiddenSuffixes:   []string{"-s3alias", "--ol-s3"},
 			ForbiddenSubstrings: []string{".."},
-			DisallowIPAddress:  true,
+			DisallowIPAddress:   true,
 		},
 		"role": {
 			MinLen:             1,
@@ -355,6 +382,10 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 		"qualifier": strings.TrimSpace(in.Qualifier),
 	}
 
+	if cfg.IgnoreRegionForRegionalResources && isRegionalResource(resourceKey, cfg.RegionalResources) {
+		components["region"] = ""
+	}
+
 	overrides := in.Overrides
 	if overrides == nil {
 		overrides = map[string]string{}
@@ -462,6 +493,8 @@ func canonicalComponentKey(key string) string {
 		return "region"
 	case "resource", "resource_type":
 		return "resource"
+	case "what":
+		return "resource"
 	case "qualifier", "qual":
 		return "qualifier"
 	default:
@@ -471,6 +504,16 @@ func canonicalComponentKey(key string) string {
 
 func normalizeStyle(style string) string {
 	return strings.ToLower(strings.TrimSpace(style))
+}
+
+func isRegionalResource(resourceKey string, regionalResources map[string]bool) bool {
+	if resourceKey == "" {
+		return false
+	}
+	if regionalResources == nil {
+		regionalResources = DefaultRegionalResources()
+	}
+	return regionalResources[resourceKey]
 }
 
 func validateResourceConstraints(resourceKey, name string, constraints map[string]ResourceConstraint) error {

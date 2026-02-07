@@ -1,4 +1,4 @@
-module github.com/jesinity/terraform-provider-cloudomen
+module github.com/jesinity/terraform-provider-sigil
 
 go 1.25.7
 

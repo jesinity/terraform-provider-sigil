@@ -4,57 +4,60 @@ import (
 	"context"
 	"strings"
 
-	"github.com/jesinity/terraform-provider-cloudomen/internal/naming"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jesinity/terraform-provider-sigil/internal/naming"
 )
 
-type CloudomenProvider struct {
+type SigilProvider struct {
 	version string
 }
 
 type ProviderData struct {
-	OrgPrefix              string
-	Project                string
-	Env                    string
-	Region                 string
-	RegionShortCode         string
-	RegionMap              map[string]string
-	Recipe                 []string
-	StylePriority          []string
-	ResourceAcronyms        map[string]string
-	ResourceStyleOverrides map[string][]string
+	OrgPrefix                        string
+	Project                          string
+	Env                              string
+	Region                           string
+	RegionShortCode                  string
+	RegionMap                        map[string]string
+	Recipe                           []string
+	StylePriority                    []string
+	ResourceAcronyms                 map[string]string
+	ResourceStyleOverrides           map[string][]string
+	IgnoreRegionForRegionalResources bool
+	RegionalResources                map[string]bool
 }
 
 type providerModel struct {
-	OrgPrefix              types.String `tfsdk:"org_prefix"`
-	Project                types.String `tfsdk:"project"`
-	Env                    types.String `tfsdk:"env"`
-	Region                 types.String `tfsdk:"region"`
-	RegionShortCode         types.String `tfsdk:"region_short_code"`
-	Recipe                 types.List   `tfsdk:"recipe"`
-	StylePriority          types.List   `tfsdk:"style_priority"`
-	RegionMap              types.Map    `tfsdk:"region_map"`
-	RegionOverrides        types.Map    `tfsdk:"region_overrides"`
-	ResourceAcronyms        types.Map    `tfsdk:"resource_acronyms"`
-	ResourceStyleOverrides types.Map    `tfsdk:"resource_style_overrides"`
+	OrgPrefix                        types.String `tfsdk:"org_prefix"`
+	Project                          types.String `tfsdk:"project"`
+	Env                              types.String `tfsdk:"env"`
+	Region                           types.String `tfsdk:"region"`
+	RegionShortCode                  types.String `tfsdk:"region_short_code"`
+	Recipe                           types.List   `tfsdk:"recipe"`
+	StylePriority                    types.List   `tfsdk:"style_priority"`
+	RegionMap                        types.Map    `tfsdk:"region_map"`
+	RegionOverrides                  types.Map    `tfsdk:"region_overrides"`
+	ResourceAcronyms                 types.Map    `tfsdk:"resource_acronyms"`
+	ResourceStyleOverrides           types.Map    `tfsdk:"resource_style_overrides"`
+	IgnoreRegionForRegionalResources types.Bool   `tfsdk:"ignore_region_for_regional_resources"`
 }
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &CloudomenProvider{version: version}
+		return &SigilProvider{version: version}
 	}
 }
 
-func (p *CloudomenProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "cloudomen"
+func (p *SigilProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "sigil"
 	resp.Version = p.version
 }
 
-func (p *CloudomenProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *SigilProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"org_prefix": schema.StringAttribute{
@@ -96,28 +99,38 @@ func (p *CloudomenProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 				Optional:    true,
 				ElementType: types.ListType{ElemType: types.StringType},
 			},
+			"ignore_region_for_regional_resources": schema.BoolAttribute{
+				Optional: true,
+			},
 		},
 	}
 }
 
-func (p *CloudomenProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *SigilProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var config providerModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	ignoreRegionForRegionalResources := true
+	if !config.IgnoreRegionForRegionalResources.IsNull() && !config.IgnoreRegionForRegionalResources.IsUnknown() {
+		ignoreRegionForRegionalResources = config.IgnoreRegionForRegionalResources.ValueBool()
+	}
+
 	data := &ProviderData{
-		OrgPrefix:              config.OrgPrefix.ValueString(),
-		Project:                config.Project.ValueString(),
-		Env:                    config.Env.ValueString(),
-		Region:                 config.Region.ValueString(),
-		RegionShortCode:         config.RegionShortCode.ValueString(),
-		RegionMap:              naming.DefaultRegionMap(),
-		Recipe:                 naming.DefaultRecipe(),
-		StylePriority:          naming.DefaultStylePriority(),
-		ResourceAcronyms:        naming.DefaultResourceAcronyms(),
-		ResourceStyleOverrides: naming.DefaultResourceStyleOverrides(),
+		OrgPrefix:                        config.OrgPrefix.ValueString(),
+		Project:                          config.Project.ValueString(),
+		Env:                              config.Env.ValueString(),
+		Region:                           config.Region.ValueString(),
+		RegionShortCode:                  config.RegionShortCode.ValueString(),
+		RegionMap:                        naming.DefaultRegionMap(),
+		Recipe:                           naming.DefaultRecipe(),
+		StylePriority:                    naming.DefaultStylePriority(),
+		ResourceAcronyms:                 naming.DefaultResourceAcronyms(),
+		ResourceStyleOverrides:           naming.DefaultResourceStyleOverrides(),
+		IgnoreRegionForRegionalResources: ignoreRegionForRegionalResources,
+		RegionalResources:                naming.DefaultRegionalResources(),
 	}
 
 	if !config.RegionMap.IsNull() && !config.RegionMap.IsUnknown() {
@@ -198,12 +211,12 @@ func (p *CloudomenProvider) Configure(ctx context.Context, req provider.Configur
 	resp.ResourceData = data
 }
 
-func (p *CloudomenProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+func (p *SigilProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewNomenDataSource,
+		NewMarkDataSource,
 	}
 }
 
-func (p *CloudomenProvider) Resources(_ context.Context) []func() resource.Resource {
+func (p *SigilProvider) Resources(_ context.Context) []func() resource.Resource {
 	return nil
 }

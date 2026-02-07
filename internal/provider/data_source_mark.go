@@ -2,19 +2,21 @@ package provider
 
 import (
 	"context"
+	"strings"
 
-	"github.com/jesinity/terraform-provider-cloudomen/internal/naming"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jesinity/terraform-provider-sigil/internal/naming"
 )
 
-type NomenDataSource struct {
+type MarkDataSource struct {
 	providerData *ProviderData
 }
 
-type nomenDataSourceModel struct {
+type markDataSourceModel struct {
 	Resource        types.String `tfsdk:"resource"`
+	What            types.String `tfsdk:"what"`
 	Qualifier       types.String `tfsdk:"qualifier"`
 	Overrides       types.Map    `tfsdk:"overrides"`
 	Recipe          types.List   `tfsdk:"recipe"`
@@ -27,19 +29,23 @@ type nomenDataSourceModel struct {
 	Parts           types.List   `tfsdk:"parts"`
 }
 
-func NewNomenDataSource() datasource.DataSource {
-	return &NomenDataSource{}
+func NewMarkDataSource() datasource.DataSource {
+	return &MarkDataSource{}
 }
 
-func (d *NomenDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_nomen"
+func (d *MarkDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_mark"
 }
 
-func (d *NomenDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *MarkDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"resource": schema.StringAttribute{
-				Required: true,
+				Optional:           true,
+				DeprecationMessage: "Use `what` instead.",
+			},
+			"what": schema.StringAttribute{
+				Optional: true,
 			},
 			"qualifier": schema.StringAttribute{
 				Optional: true,
@@ -80,7 +86,7 @@ func (d *NomenDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 	}
 }
 
-func (d *NomenDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+func (d *MarkDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -93,13 +99,13 @@ func (d *NomenDataSource) Configure(_ context.Context, req datasource.ConfigureR
 	d.providerData = providerData
 }
 
-func (d *NomenDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *MarkDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.providerData == nil {
 		resp.Diagnostics.AddError("Provider not configured", "The provider has not been configured yet.")
 		return
 	}
 
-	var data nomenDataSourceModel
+	var data markDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -129,19 +135,35 @@ func (d *NomenDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		}
 	}
 
+	what := strings.TrimSpace(data.What.ValueString())
+	resource := strings.TrimSpace(data.Resource.ValueString())
+	if what == "" && resource == "" {
+		resp.Diagnostics.AddError("Missing required attribute", "Either `what` (preferred) or `resource` must be set.")
+		return
+	}
+	if what != "" && resource != "" && what != resource {
+		resp.Diagnostics.AddError("Conflicting attributes", "`what` and `resource` cannot both be set to different values.")
+		return
+	}
+	if what == "" {
+		what = resource
+	}
+
 	result, err := naming.BuildName(naming.Config{
-		OrgPrefix:              d.providerData.OrgPrefix,
-		Project:                d.providerData.Project,
-		Env:                    d.providerData.Env,
-		Region:                 d.providerData.Region,
-		RegionShortCode:         d.providerData.RegionShortCode,
-		RegionMap:              d.providerData.RegionMap,
-		Recipe:                 d.providerData.Recipe,
-		StylePriority:          d.providerData.StylePriority,
-		ResourceAcronyms:        d.providerData.ResourceAcronyms,
-		ResourceStyleOverrides: d.providerData.ResourceStyleOverrides,
+		OrgPrefix:                        d.providerData.OrgPrefix,
+		Project:                          d.providerData.Project,
+		Env:                              d.providerData.Env,
+		Region:                           d.providerData.Region,
+		RegionShortCode:                  d.providerData.RegionShortCode,
+		RegionMap:                        d.providerData.RegionMap,
+		Recipe:                           d.providerData.Recipe,
+		StylePriority:                    d.providerData.StylePriority,
+		ResourceAcronyms:                 d.providerData.ResourceAcronyms,
+		ResourceStyleOverrides:           d.providerData.ResourceStyleOverrides,
+		IgnoreRegionForRegionalResources: d.providerData.IgnoreRegionForRegionalResources,
+		RegionalResources:                d.providerData.RegionalResources,
 	}, naming.BuildInput{
-		Resource:      data.Resource.ValueString(),
+		Resource:      what,
 		Qualifier:     data.Qualifier.ValueString(),
 		Overrides:     overrides,
 		Recipe:        recipe,

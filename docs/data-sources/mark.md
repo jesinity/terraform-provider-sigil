@@ -1,42 +1,44 @@
-# cloudomen_nomen Data Source
+# sigil_mark Data Source
 
 Generates a resource name and its components using provider configuration, optional overrides, and style preferences.
 
 ## Example Usage
 
+These examples assume `ignore_region_for_regional_resources = false`. If you keep the default `true` and the resource is marked `regional`, the region segment and `region_code` will be omitted.
+
 ```hcl
-data "cloudomen_nomen" "bucket" {
-  resource  = "s3"
+data "sigil_mark" "bucket" {
+  what      = "s3"
   qualifier = "mydata"
 }
 
 output "bucket_name" {
-  value = data.cloudomen_nomen.bucket.name
+  value = data.sigil_mark.bucket.name
   # Example: "acme-iac-dev-apse2-s3b-mydata"
 }
 
 output "bucket_style" {
-  value = data.cloudomen_nomen.bucket.style
+  value = data.sigil_mark.bucket.style
   # Example: "dashed"
 }
 
 output "bucket_region_code" {
-  value = data.cloudomen_nomen.bucket.region_code
+  value = data.sigil_mark.bucket.region_code
   # Example: "apse2"
 }
 
 output "bucket_resource_acronym" {
-  value = data.cloudomen_nomen.bucket.resource_acronym
+  value = data.sigil_mark.bucket.resource_acronym
   # Example: "s3b"
 }
 
 output "bucket_parts" {
-  value = data.cloudomen_nomen.bucket.parts
+  value = data.sigil_mark.bucket.parts
   # Example: ["acme", "iac", "dev", "apse2", "s3b", "mydata"]
 }
 
 output "bucket_components" {
-  value = data.cloudomen_nomen.bucket.components
+  value = data.sigil_mark.bucket.components
   # Example:
   # {
   #   org       = "acme"
@@ -52,63 +54,64 @@ output "bucket_components" {
 ### More Examples
 
 ```hcl
-data "cloudomen_nomen" "iam_role" {
-  resource       = "iam_role"
+data "sigil_mark" "iam_role" {
+  what           = "iam_role"
   qualifier      = "app"
   style_priority = ["pascal", "camel", "dashed"]
 }
 
 output "iam_role_name" {
-  value = data.cloudomen_nomen.iam_role.name
+  value = data.sigil_mark.iam_role.name
   # Example: "AcmeIacDevApse2RoleApp"
 }
 
 output "iam_role_style" {
-  value = data.cloudomen_nomen.iam_role.style
+  value = data.sigil_mark.iam_role.style
   # Example: "pascal"
 }
 ```
 
 ```hcl
-data "cloudomen_nomen" "lambda" {
-  resource       = "lambda"
+data "sigil_mark" "lambda" {
+  what           = "lambda"
   qualifier      = "ingest"
   style_priority = ["underscore", "dashed"]
 }
 
 output "lambda_name" {
-  value = data.cloudomen_nomen.lambda.name
+  value = data.sigil_mark.lambda.name
   # Example: "acme_iac_dev_apse2_lmbd_ingest"
 }
 
 output "lambda_resource_acronym" {
-  value = data.cloudomen_nomen.lambda.resource_acronym
+  value = data.sigil_mark.lambda.resource_acronym
   # Example: "lmbd"
 }
 ```
 
 ```hcl
-data "cloudomen_nomen" "queue" {
-  resource  = "sqs"
+data "sigil_mark" "queue" {
+  what      = "sqs"
   qualifier = "jobs"
 }
 
 output "queue_name" {
-  value = data.cloudomen_nomen.queue.name
+  value = data.sigil_mark.queue.name
   # Example: "acme-iac-dev-apse2-sqs-jobs"
 }
 
 output "queue_style" {
-  value = data.cloudomen_nomen.queue.style
+  value = data.sigil_mark.queue.style
   # Example: "dashed"
 }
 ```
 
 ## Argument Reference
 
-- `resource` (Required) Resource identifier, such as `s3` or `iam_role`.
+- `what` (Required) Resource identifier, such as `s3` or `iam_role`.
+- `resource` (Deprecated) Alias for `what`. The `components` output still uses the `resource` key.
 - `qualifier` (Optional) Additional name segment to distinguish similar resources.
-- `overrides` (Optional) Map of component overrides, such as `org`, `proj`, `env`, `region`, `resource`, or `qualifier`.
+- `overrides` (Optional) Map of component overrides, such as `org`, `proj`, `env`, `region`, `resource` (or `what`), or `qualifier`.
 - `recipe` (Optional) Ordered list of components used to build the name for this request.
 - `style_priority` (Optional) Preferred naming styles in order of precedence for this request.
 
@@ -123,7 +126,7 @@ output "queue_style" {
 
 ## Style Priority Resolution
 
-The data source selects the first valid style from `style_priority` (request-specific) or the provider `style_priority` when none is supplied. If `resource_style_overrides` defines an allowed style list for the current `resource`, only those styles are considered. If no style matches, the provider falls back to `dashed`.
+The data source selects the first valid style from `style_priority` (request-specific) or the provider `style_priority` when none is supplied. If `resource_style_overrides` defines an allowed style list for the current `what`, only those styles are considered. If no style matches, the provider falls back to `dashed`.
 
 By default, `s3` and `s3_bucket` are restricted to `dashed` and `straight` to align with S3 naming rules.
 
@@ -138,7 +141,7 @@ Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so pun
 
 ## Resource Constraints
 
-Some resources enforce naming constraints after formatting. The constraint name is the `resource` input (case-insensitive). If the computed name violates a constraint, the data source returns an error.
+Some resources enforce naming constraints after formatting. The constraint name is the `what` input (case-insensitive). If the computed name violates a constraint, the data source returns an error.
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |

@@ -1,24 +1,26 @@
-# cloudomen
+# sigil
 
-Terraform provider for AWS naming conventions and consistent resource naming.
+Terraform provider for AWS naming conventions and consistent resource naming. Today it's AWS-first, with room to expand to other clouds in the future.
 
 ## Provider Configuration
 
 ```hcl
 terraform {
   required_providers {
-    cloudomen = {
-      source  = "jesinity/cloudomen"
-      version = "0.1.0"
+    sigil = {
+      source  = "jesinity/sigil"
+      version = "0.2.0"
     }
   }
 }
 
-provider "cloudomen" {
+provider "sigil" {
   org_prefix = "acme"
   project    = "iac"
   env        = "dev"
   region     = "ap-southeast-2"
+  # Optional: omit region for regional resources (default true)
+  ignore_region_for_regional_resources = false
 
   # Optional: override just one region
   region_overrides = {
@@ -38,26 +40,28 @@ provider "cloudomen" {
 }
 ```
 
-## Data Source `cloudomen_nomen`
+## Data Source `sigil_mark`
+
+`what` identifies the resource type (formerly `resource`) and drives acronyms, style overrides, and constraints. The `resource` argument is still accepted but deprecated. In recipes and outputs, the component key remains `resource` (alias `what`).
 
 ### Basic name
 
 ```hcl
-data "cloudomen_nomen" "bucket" {
-  resource  = "s3"
+data "sigil_mark" "bucket" {
+  what      = "s3"
   qualifier = "mydata"
 }
 
 output "bucket_name" {
-  value = data.cloudomen_nomen.bucket.name
+  value = data.sigil_mark.bucket.name
 }
 ```
 
 ### Override a component
 
 ```hcl
-data "cloudomen_nomen" "bucket" {
-  resource  = "s3"
+data "sigil_mark" "bucket" {
+  what      = "s3"
   qualifier = "mydata"
 
   overrides = {
@@ -70,8 +74,8 @@ data "cloudomen_nomen" "bucket" {
 ### Custom recipe and style priority
 
 ```hcl
-data "cloudomen_nomen" "bucket" {
-  resource  = "s3"
+data "sigil_mark" "bucket" {
+  what      = "s3"
   qualifier = "mydata"
 
   recipe         = ["org", "proj", "env", "resource", "qualifier"]
@@ -82,54 +86,54 @@ data "cloudomen_nomen" "bucket" {
 ### More examples
 
 ```hcl
-data "cloudomen_nomen" "iam_role" {
-  resource       = "iam_role"
+data "sigil_mark" "iam_role" {
+  what           = "iam_role"
   qualifier      = "app"
   style_priority = ["pascal", "camel", "dashed"]
 }
 
 output "iam_role_name" {
-  value = data.cloudomen_nomen.iam_role.name
+  value = data.sigil_mark.iam_role.name
   # Example: "AcmeIacDevApse2RoleApp"
 }
 
 output "iam_role_style" {
-  value = data.cloudomen_nomen.iam_role.style
+  value = data.sigil_mark.iam_role.style
   # Example: "pascal"
 }
 ```
 
 ```hcl
-data "cloudomen_nomen" "lambda" {
-  resource       = "lambda"
+data "sigil_mark" "lambda" {
+  what           = "lambda"
   qualifier      = "ingest"
   style_priority = ["underscore", "dashed"]
 }
 
 output "lambda_name" {
-  value = data.cloudomen_nomen.lambda.name
+  value = data.sigil_mark.lambda.name
   # Example: "acme_iac_dev_apse2_lmbd_ingest"
 }
 
 output "lambda_resource_acronym" {
-  value = data.cloudomen_nomen.lambda.resource_acronym
+  value = data.sigil_mark.lambda.resource_acronym
   # Example: "lmbd"
 }
 ```
 
 ```hcl
-data "cloudomen_nomen" "queue" {
-  resource  = "sqs"
+data "sigil_mark" "queue" {
+  what      = "sqs"
   qualifier = "jobs"
 }
 
 output "queue_name" {
-  value = data.cloudomen_nomen.queue.name
+  value = data.sigil_mark.queue.name
   # Example: "acme-iac-dev-apse2-sqs-jobs"
 }
 
 output "queue_style" {
-  value = data.cloudomen_nomen.queue.style
+  value = data.sigil_mark.queue.style
   # Example: "dashed"
 }
 ```
@@ -148,32 +152,32 @@ The data source returns:
 
 ```hcl
 output "bucket_name" {
-  value = data.cloudomen_nomen.bucket.name
+  value = data.sigil_mark.bucket.name
   # Example: "acme-iac-dev-apse2-s3b-mydata"
 }
 
 output "bucket_style" {
-  value = data.cloudomen_nomen.bucket.style
+  value = data.sigil_mark.bucket.style
   # Example: "dashed"
 }
 
 output "bucket_region_code" {
-  value = data.cloudomen_nomen.bucket.region_code
+  value = data.sigil_mark.bucket.region_code
   # Example: "apse2"
 }
 
 output "bucket_resource_acronym" {
-  value = data.cloudomen_nomen.bucket.resource_acronym
+  value = data.sigil_mark.bucket.resource_acronym
   # Example: "s3b"
 }
 
 output "bucket_parts" {
-  value = data.cloudomen_nomen.bucket.parts
+  value = data.sigil_mark.bucket.parts
   # Example: ["acme", "iac", "dev", "apse2", "s3b", "mydata"]
 }
 
 output "bucket_components" {
-  value = data.cloudomen_nomen.bucket.components
+  value = data.sigil_mark.bucket.components
   # Example:
   # {
   #   org       = "acme"
@@ -185,6 +189,116 @@ output "bucket_components" {
   # }
 }
 ```
+
+## Recipe and Optional Components
+
+The recipe is an ordered list of components. Components are only included when they have a non-empty value, so you can omit any component by removing it from the recipe or leaving it empty. Configure a default recipe at the provider level and override per data source with `recipe`.
+
+Example: omit `env` from the name:
+
+```hcl
+provider "sigil" {
+  org_prefix = "acme"
+  project    = "iac"
+  env        = "dev"
+  region     = "ap-southeast-2"
+
+  recipe = ["org", "proj", "region", "resource", "qualifier"]
+}
+```
+
+## Region Handling
+
+When `ignore_region_for_regional_resources` is `true` (default), the `region` component is omitted for resources marked as `regional` in the table below. Resources marked `global` keep the region component even when the flag is enabled. Set it to `false` to always include the region in names. You can still force a region per name via `overrides`. When the region is omitted, `region_code` will be empty unless overridden.
+
+## Resource Acronyms and Scope
+
+Default resource acronyms and scope. Scope is used by `ignore_region_for_regional_resources`. You can override acronyms with `resource_acronyms`.
+
+| Resource | Acronym | Scope |
+| --- | --- | --- |
+| `acm_cert` | `acmc` | `regional` |
+| `alb` | `albl` | `regional` |
+| `api_gateway_model` | `agmd` | `regional` |
+| `api_gateway_rest_api` | `agra` | `regional` |
+| `api_gateway_v2` | `agv2` | `regional` |
+| `appsync` | `apsy` | `regional` |
+| `athena` | `athn` | `regional` |
+| `aurora_cluster` | `arcl` | `regional` |
+| `autoscaling_group` | `asgr` | `regional` |
+| `cloudformation_stack` | `cfst` | `regional` |
+| `cloudfront` | `clfr` | `global` |
+| `cloudtrail` | `ctra` | `regional` |
+| `cloudwatch_alarm` | `cwal` | `regional` |
+| `cloudwatch_log_group` | `cwlg` | `regional` |
+| `codebuild` | `cdbd` | `regional` |
+| `codedeploy` | `cddp` | `regional` |
+| `codepipeline` | `cdpl` | `regional` |
+| `config_rule` | `cfrl` | `regional` |
+| `dynamodb` | `dydb` | `regional` |
+| `dynamodb_table` | `dydb` | `regional` |
+| `ebs` | `ebs` | `regional` |
+| `ec2_instance` | `ec2i` | `regional` |
+| `ecr` | `ecr` | `regional` |
+| `ecs` | `ecs` | `regional` |
+| `ecs_cluster` | `ecsc` | `regional` |
+| `ecs_service` | `ecss` | `regional` |
+| `ecs_task` | `ecst` | `regional` |
+| `efs` | `efs` | `regional` |
+| `eks` | `eks` | `regional` |
+| `eks_cluster` | `eksc` | `regional` |
+| `eks_node_group` | `ekng` | `regional` |
+| `elastic_ip` | `elip` | `regional` |
+| `elasticache` | `elch` | `regional` |
+| `elasticsearch` | `elsr` | `regional` |
+| `elb` | `elbl` | `regional` |
+| `eventbridge_bus` | `evbb` | `regional` |
+| `eventbridge_rule` | `evbr` | `regional` |
+| `glue` | `glue` | `regional` |
+| `guardduty` | `gdty` | `regional` |
+| `iam_group` | `iamg` | `global` |
+| `iam_policy` | `iamp` | `global` |
+| `iam_role` | `role` | `global` |
+| `iam_user` | `iamu` | `global` |
+| `igw` | `igtw` | `regional` |
+| `kms_key` | `kmsk` | `regional` |
+| `lambda` | `lmbd` | `regional` |
+| `launch_template` | `lcht` | `regional` |
+| `log_group` | `logg` | `regional` |
+| `msk_cluster` | `mskc` | `regional` |
+| `nacl` | `nacl` | `regional` |
+| `nat_gw` | `ngtw` | `regional` |
+| `nlb` | `nlbl` | `regional` |
+| `opensearch` | `opsr` | `regional` |
+| `rds` | `rds` | `regional` |
+| `rds_cluster` | `rdsc` | `regional` |
+| `redshift` | `rdsh` | `regional` |
+| `role` | `role` | `global` |
+| `role_policy` | `rlpl` | `global` |
+| `route53_record` | `r53r` | `global` |
+| `route53_zone` | `rt53` | `global` |
+| `route_table` | `rttb` | `regional` |
+| `s3` | `s3b` | `regional` |
+| `s3_access_point` | `s3ap` | `regional` |
+| `s3_bucket` | `s3bk` | `regional` |
+| `s3_dir` | `s3dr` | `regional` |
+| `s3_object` | `s3ob` | `regional` |
+| `s3_table` | `s3tb` | `regional` |
+| `sagemaker` | `sgmk` | `regional` |
+| `sec_group` | `scgp` | `regional` |
+| `secretsmanager_secret` | `smse` | `regional` |
+| `sfn` | `stfn` | `regional` |
+| `snow_notification_integration` | `snti` | `regional` |
+| `sns` | `sns` | `regional` |
+| `sqs` | `sqs` | `regional` |
+| `ssm_parameter` | `ssmp` | `regional` |
+| `step_function` | `stfn` | `regional` |
+| `subnet` | `subn` | `regional` |
+| `target_group` | `tgpt` | `regional` |
+| `vpc` | `vpcn` | `regional` |
+| `wafv2_ip_set` | `wfis` | `regional` |
+| `wafv2_web_acl` | `wfac` | `regional` |
+| `wafv2_web_acl_rule` | `wfar` | `regional` |
 
 ## Naming Styles
 
@@ -210,7 +324,7 @@ By default, `s3` and `s3_bucket` are restricted to `dashed` and `straight` to al
 
 ## Resource Constraints
 
-Some resources have naming constraints enforced after formatting. The constraint name matches the `resource` input (case-insensitive). The table below lists built-in constraints and their limits.
+Some resources have naming constraints enforced after formatting. The constraint name matches the `what` input (case-insensitive). The table below lists built-in constraints and their limits.
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |
