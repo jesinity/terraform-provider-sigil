@@ -36,9 +36,43 @@ provider "sigil" {
   # recipe = ["org", "proj", "env", "region", "resource", "qualifier"]
 
   # Optional: override style priority
-  # style_priority = ["dashed", "pascal", "camel", "straight", "underscore"]
+  # style_priority = ["dashed", "pascal", "pascaldashed", "camel", "straight", "underscore"]
 }
 ```
+
+For reuse across multiple provider aliases, you can supply a base `config` object and apply `overrides`. Precedence is: `config` -> top-level attributes -> `overrides`. Top-level attributes are a shorthand for the common case.
+
+```hcl
+locals {
+  sigil_config = {
+    org_prefix = "acme"
+    project    = "iac"
+    env        = "dev"
+    region     = "ap-southeast-2"
+
+    ignore_region_for_regional_resources = false
+    region_overrides = {
+      "us-east-1" = "ueue1"
+    }
+  }
+}
+
+provider "sigil" {
+  config = local.sigil_config
+}
+
+provider "sigil" {
+  alias  = "secondary"
+  config = local.sigil_config
+
+  overrides = {
+    region = "us-east-1"
+  }
+}
+```
+
+**Why This Design**
+Top-level attributes keep the provider fast to configure for the common single-provider case. The optional `config` + `overrides` pattern reduces repetition when you need multiple provider aliases with small differences (like region), without forcing everyone into extra nesting. The merge order is explicit so it is easy to reason about which values win.
 
 ## Data Source `sigil_mark`
 
@@ -236,7 +270,7 @@ Default resource acronyms and scope. Scope is used by `ignore_region_for_regiona
 | `codepipeline` | `cdpl` | `regional` |
 | `config_rule` | `cfrl` | `regional` |
 | `dynamodb` | `dydb` | `regional` |
-| `dynamodb_table` | `dydb` | `regional` |
+| `dynamodb_table` | `dybt` | `regional` |
 | `ebs` | `ebs` | `regional` |
 | `ec2_instance` | `ec2i` | `regional` |
 | `ecr` | `ecr` | `regional` |
@@ -309,6 +343,7 @@ Valid styles:
 - `underscore`
 - `straight`
 - `pascal`
+- `pascaldashed`
 - `camel`
 
 Style behaviors:
@@ -316,6 +351,7 @@ Style behaviors:
 - `underscore` Lowercase words joined by `_`.
 - `straight` Lowercase words concatenated.
 - `pascal` Words in `PascalCase`.
+- `pascaldashed` Words in `Pascal-Case` joined by `-`.
 - `camel` Words in `camelCase`.
 
 Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so punctuation or separators become word boundaries. If no valid style matches the priority list and any resource overrides, the provider falls back to `dashed`.
@@ -351,9 +387,11 @@ Constraint types include minimum or maximum length, required pattern, forbidden 
 
 ## Argument Reference
 
-- `org_prefix` (Required) Short organization identifier.
+- `config` (Optional) Base configuration object; accepts the same keys as the top-level attributes.
+- `overrides` (Optional) Overrides applied after top-level attributes; accepts the same keys as the top-level attributes.
+- `org_prefix` (Required unless set in `config` or `overrides`) Short organization identifier.
 - `project` (Optional) Project or workload identifier.
-- `env` (Required) Environment identifier, such as `dev`, `staging`, or `prod`.
+- `env` (Required unless set in `config` or `overrides`) Environment identifier, such as `dev`, `staging`, or `prod`.
 - `region` (Optional) AWS region name, used to derive a short region code.
 - `region_short_code` (Optional) Explicit short region code to use instead of mapping.
 - `region_map` (Optional) Full region map; when set, replaces the default map.

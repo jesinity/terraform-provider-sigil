@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	StyleDashed     = "dashed"
-	StyleUnderscore = "underscore"
-	StyleStraight   = "straight"
-	StylePascal     = "pascal"
-	StyleCamel      = "camel"
+	StyleDashed       = "dashed"
+	StyleUnderscore   = "underscore"
+	StyleStraight     = "straight"
+	StylePascal       = "pascal"
+	StylePascalDashed = "pascaldashed"
+	StyleCamel        = "camel"
 )
 
 var (
@@ -70,7 +71,7 @@ func DefaultRecipe() []string {
 }
 
 func DefaultStylePriority() []string {
-	return []string{StyleDashed, StylePascal, StyleCamel, StyleStraight, StyleUnderscore}
+	return []string{StyleDashed, StylePascal, StylePascalDashed, StyleCamel, StyleStraight, StyleUnderscore}
 }
 
 func DefaultRegionMap() map[string]string {
@@ -158,7 +159,7 @@ func DefaultResourceAcronyms() map[string]string {
 		"step_function":                 "stfn",
 		"sfn":                           "stfn",
 		"dynamodb":                      "dydb",
-		"dynamodb_table":                "dydb",
+		"dynamodb_table":                "dybt",
 		"rds":                           "rds",
 		"rds_cluster":                   "rdsc",
 		"aurora_cluster":                "arcl",
@@ -611,7 +612,7 @@ func normalizeStyles(styles []string) []string {
 
 func isValidStyle(style string) bool {
 	switch style {
-	case StyleDashed, StyleUnderscore, StyleStraight, StylePascal, StyleCamel:
+	case StyleDashed, StyleUnderscore, StyleStraight, StylePascal, StylePascalDashed, StyleCamel:
 		return true
 	default:
 		return false
@@ -628,6 +629,8 @@ func formatName(style string, parts []string) (string, error) {
 		return strings.Join(normalizeParts(parts, "", false), ""), nil
 	case StylePascal:
 		return strings.Join(normalizeParts(parts, "", true), ""), nil
+	case StylePascalDashed:
+		return pascalDashedize(parts), nil
 	case StyleCamel:
 		return camelize(parts), nil
 	default:
@@ -679,6 +682,23 @@ func camelize(parts []string) string {
 	}
 
 	return first + strings.Join(rest, "")
+}
+
+func pascalDashedize(parts []string) string {
+	words := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		for _, w := range splitWords(p) {
+			if w == "" {
+				continue
+			}
+			words = append(words, titleWord(w))
+		}
+	}
+	return strings.Join(words, "-")
 }
 
 func pascalize(value string) string {
