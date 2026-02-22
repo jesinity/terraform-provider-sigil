@@ -1,22 +1,14 @@
 package naming
 
 import (
-	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"regexp"
-	"sort"
 	"strings"
-	"sync"
-	"unicode"
 )
 
 const (
-	CloudAWS   = "aws"
-	CloudAzure = "azure"
-
 	StyleDashed       = "dashed"
 	StyleUnderscore   = "underscore"
 	StyleStraight     = "straight"
@@ -27,35 +19,10 @@ const (
 
 var (
 	wordRe = regexp.MustCompile(`[A-Za-z0-9]+`)
-
-	//go:embed azure_caf_resource_definition.json
-	azureCAFResourceDefinitionJSON []byte
-
-	azureCAFDefaultsOnce sync.Once
-	azureCAFDefaults     CloudDefaults
-	azureCAFDefaultsErr  error
 )
 
-type CloudDefaults struct {
-	RegionMap              map[string]string
-	ResourceAcronyms       map[string]string
-	ResourceStyleOverrides map[string][]string
-	ResourceConstraints    map[string]ResourceConstraint
-	RegionalResources      map[string]bool
-}
-
-type azureCAFResourceDefinition struct {
-	Name            string `json:"name"`
-	MinLength       int    `json:"min_length"`
-	MaxLength       int    `json:"max_length"`
-	ValidationRegex string `json:"validation_regex"`
-	Scope           string `json:"scope"`
-	Slug            string `json:"slug"`
-	Dashes          bool   `json:"dashes"`
-	Lowercase       bool   `json:"lowercase"`
-}
-
 type Config struct {
+	Cloud                            string
 	OrgPrefix                        string
 	Project                          string
 	Env                              string
@@ -100,44 +67,6 @@ type ResourceConstraint struct {
 	CaseInsensitive     bool
 }
 
-func DefaultCloud() string {
-	return CloudAWS
-}
-
-func NormalizeCloud(cloud string) string {
-	normalized := strings.ToLower(strings.TrimSpace(cloud))
-	if normalized == "" {
-		return DefaultCloud()
-	}
-	return normalized
-}
-
-func IsSupportedCloud(cloud string) bool {
-	switch NormalizeCloud(cloud) {
-	case CloudAWS, CloudAzure:
-		return true
-	default:
-		return false
-	}
-}
-
-func DefaultCloudDefaults(cloud string) (CloudDefaults, error) {
-	switch NormalizeCloud(cloud) {
-	case CloudAWS:
-		return CloudDefaults{
-			RegionMap:              DefaultRegionMap(),
-			ResourceAcronyms:       DefaultResourceAcronyms(),
-			ResourceStyleOverrides: DefaultResourceStyleOverrides(),
-			ResourceConstraints:    DefaultResourceConstraints(),
-			RegionalResources:      DefaultRegionalResources(),
-		}, nil
-	case CloudAzure:
-		return defaultAzureCloudDefaults()
-	default:
-		return CloudDefaults{}, fmt.Errorf("unsupported cloud %q", cloud)
-	}
-}
-
 func DefaultRecipe() []string {
 	return []string{"org", "proj", "env", "region", "resource", "qualifier"}
 }
@@ -146,403 +75,34 @@ func DefaultStylePriority() []string {
 	return []string{StyleDashed, StylePascal, StylePascalDashed, StyleCamel, StyleStraight, StyleUnderscore}
 }
 
-func DefaultRegionMap() map[string]string {
-	return map[string]string{
-		"us-east-1":      "use1",
-		"us-east-2":      "use2",
-		"us-west-1":      "usw1",
-		"us-west-2":      "usw2",
-		"af-south-1":     "afs1",
-		"ap-east-1":      "ape1",
-		"ap-south-1":     "aps1",
-		"ap-south-2":     "aps2",
-		"ap-southeast-1": "apse1",
-		"ap-southeast-2": "apse2",
-		"ap-southeast-3": "apse3",
-		"ap-southeast-4": "apse4",
-		"ap-northeast-1": "apne1",
-		"ap-northeast-2": "apne2",
-		"ap-northeast-3": "apne3",
-		"ca-central-1":   "cac1",
-		"ca-west-1":      "caw1",
-		"cn-north-1":     "cnn1",
-		"cn-northwest-1": "cnnw1",
-		"eu-central-1":   "euc1",
-		"eu-central-2":   "euc2",
-		"eu-west-1":      "euw1",
-		"eu-west-2":      "euw2",
-		"eu-west-3":      "euw3",
-		"eu-west-4":      "euw4",
-		"eu-north-1":     "eun1",
-		"eu-south-1":     "eus1",
-		"eu-south-2":     "eus2",
-		"il-central-1":   "ilc1",
-		"me-south-1":     "mes1",
-		"me-central-1":   "mec1",
-		"sa-east-1":      "sae1",
-		"us-gov-west-1":  "usgw1",
-		"us-gov-east-1":  "usge1",
-	}
-}
-
-func DefaultResourceAcronyms() map[string]string {
-	return map[string]string{
-		"role":                          "role",
-		"role_policy":                   "rlpl",
-		"iam_role":                      "role",
-		"iam_policy":                    "iamp",
-		"iam_user":                      "iamu",
-		"iam_group":                     "iamg",
-		"s3":                            "s3b",
-		"s3_bucket":                     "s3bk",
-		"s3_object":                     "s3ob",
-		"s3_access_point":               "s3ap",
-		"s3_table":                      "s3tb",
-		"s3_dir":                        "s3dr",
-		"sns":                           "sns",
-		"sqs":                           "sqs",
-		"ecs_cluster":                   "ecsc",
-		"ecs_service":                   "ecss",
-		"ecs_task":                      "ecst",
-		"eks":                           "eks",
-		"eks_cluster":                   "eksc",
-		"eks_node_group":                "ekng",
-		"msk_cluster":                   "mskc",
-		"vpc":                           "vpcn",
-		"subnet":                        "subn",
-		"igw":                           "igtw",
-		"nat_gw":                        "ngtw",
-		"sec_group":                     "scgp",
-		"nacl":                          "nacl",
-		"route_table":                   "rttb",
-		"elastic_ip":                    "elip",
-		"wafv2_web_acl":                 "wfac",
-		"wafv2_web_acl_rule":            "wfar",
-		"wafv2_ip_set":                  "wfis",
-		"lambda":                        "lmbd",
-		"api_gateway_rest_api":          "agra",
-		"api_gateway_model":             "agmd",
-		"api_gateway_v2":                "agv2",
-		"log_group":                     "logg",
-		"cloudwatch_log_group":          "cwlg",
-		"cloudwatch_alarm":              "cwal",
-		"eventbridge_bus":               "evbb",
-		"eventbridge_rule":              "evbr",
-		"step_function":                 "stfn",
-		"sfn":                           "stfn",
-		"dynamodb":                      "dydb",
-		"dynamodb_table":                "dybt",
-		"rds":                           "rds",
-		"rds_cluster":                   "rdsc",
-		"aurora_cluster":                "arcl",
-		"redshift":                      "rdsh",
-		"elasticache":                   "elch",
-		"opensearch":                    "opsr",
-		"elasticsearch":                 "elsr",
-		"ecr":                           "ecr",
-		"ecs":                           "ecs",
-		"ec2_instance":                  "ec2i",
-		"launch_template":               "lcht",
-		"autoscaling_group":             "asgr",
-		"alb":                           "albl",
-		"nlb":                           "nlbl",
-		"elb":                           "elbl",
-		"target_group":                  "tgpt",
-		"cloudfront":                    "clfr",
-		"route53_zone":                  "rt53",
-		"route53_record":                "r53r",
-		"acm_cert":                      "acmc",
-		"kms_key":                       "kmsk",
-		"secretsmanager_secret":         "smse",
-		"ssm_parameter":                 "ssmp",
-		"cloudtrail":                    "ctra",
-		"guardduty":                     "gdty",
-		"config_rule":                   "cfrl",
-		"efs":                           "efs",
-		"ebs":                           "ebs",
-		"athena":                        "athn",
-		"glue":                          "glue",
-		"sagemaker":                     "sgmk",
-		"codebuild":                     "cdbd",
-		"codepipeline":                  "cdpl",
-		"codedeploy":                    "cddp",
-		"cloudformation_stack":          "cfst",
-		"appsync":                       "apsy",
-		"snow_notification_integration": "snti",
-	}
-}
-
-func DefaultGlobalResources() map[string]bool {
-	return map[string]bool{
-		"role":           true,
-		"role_policy":    true,
-		"iam_role":       true,
-		"iam_policy":     true,
-		"iam_user":       true,
-		"iam_group":      true,
-		"cloudfront":     true,
-		"route53_zone":   true,
-		"route53_record": true,
-	}
-}
-
-func DefaultRegionalResources() map[string]bool {
-	regional := map[string]bool{}
-	for key := range DefaultResourceAcronyms() {
-		regional[key] = true
-	}
-	for key := range DefaultGlobalResources() {
-		delete(regional, key)
-	}
-	return regional
-}
-
-func DefaultResourceStyleOverrides() map[string][]string {
-	return map[string][]string{
-		"s3":        {StyleDashed, StyleStraight},
-		"s3_bucket": {StyleDashed, StyleStraight},
-	}
-}
-
-func DefaultResourceConstraints() map[string]ResourceConstraint {
-	return map[string]ResourceConstraint{
-		"s3": {
-			MinLen:              3,
-			MaxLen:              63,
-			Pattern:             regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
-			PatternDescription:  "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
-			ForbiddenPrefixes:   []string{"xn--", "sthree-", "amzn-s3-demo-"},
-			ForbiddenSuffixes:   []string{"-s3alias", "--ol-s3"},
-			ForbiddenSubstrings: []string{".."},
-			DisallowIPAddress:   true,
-		},
-		"s3_bucket": {
-			MinLen:              3,
-			MaxLen:              63,
-			Pattern:             regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
-			PatternDescription:  "lowercase letters, numbers, dots, and hyphens; must start and end with a letter or number",
-			ForbiddenPrefixes:   []string{"xn--", "sthree-", "amzn-s3-demo-"},
-			ForbiddenSuffixes:   []string{"-s3alias", "--ol-s3"},
-			ForbiddenSubstrings: []string{".."},
-			DisallowIPAddress:   true,
-		},
-		"role": {
-			MinLen:             1,
-			MaxLen:             64,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"iam_role": {
-			MinLen:             1,
-			MaxLen:             64,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"iam_user": {
-			MinLen:             1,
-			MaxLen:             64,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"iam_group": {
-			MinLen:             1,
-			MaxLen:             128,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"iam_policy": {
-			MinLen:             1,
-			MaxLen:             128,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"role_policy": {
-			MinLen:             1,
-			MaxLen:             128,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9+=,.@_-]+$`),
-			PatternDescription: "alphanumeric and the following: +=,.@_-",
-		},
-		"sns": {
-			MinLen:             1,
-			MaxLen:             256,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
-			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO topics must end with .fifo",
-		},
-		"sns_topic": {
-			MinLen:             1,
-			MaxLen:             256,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
-			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO topics must end with .fifo",
-		},
-		"sqs": {
-			MinLen:             1,
-			MaxLen:             80,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
-			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO queues must end with .fifo",
-		},
-		"sqs_queue": {
-			MinLen:             1,
-			MaxLen:             80,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.fifo)?$`),
-			PatternDescription: "letters, numbers, underscores, and hyphens; FIFO queues must end with .fifo",
-		},
-		"lambda": {
-			MinLen:             1,
-			MaxLen:             64,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9-_]+$`),
-			PatternDescription: "letters, numbers, hyphens, and underscores",
-		},
-		"kms_alias": {
-			MinLen:             1,
-			MaxLen:             256,
-			Pattern:            regexp.MustCompile(`^alias/[a-zA-Z0-9/_-]+$`),
-			PatternDescription: "must begin with alias/ and contain only letters, numbers, slashes, underscores, and hyphens",
-			ForbiddenPrefixes:  []string{"alias/aws/"},
-		},
-		"log_group": {
-			MinLen:             1,
-			MaxLen:             512,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_\-/.#]+$`),
-			PatternDescription: "letters, numbers, underscore, hyphen, slash, period, and #",
-			ForbiddenPrefixes:  []string{"aws/"},
-		},
-		"cloudwatch_log_group": {
-			MinLen:             1,
-			MaxLen:             512,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9_\-/.#]+$`),
-			PatternDescription: "letters, numbers, underscore, hyphen, slash, period, and #",
-			ForbiddenPrefixes:  []string{"aws/"},
-		},
-		"sec_group": {
-			MinLen:             1,
-			MaxLen:             255,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9 ._\-:/()#,@\[\]+=&;{}!$*]+$`),
-			PatternDescription: "letters, numbers, spaces, and ._-:/()#,@[]+=&;{}!$*",
-			ForbiddenPrefixes:  []string{"sg-"},
-			CaseInsensitive:    true,
-		},
-		"security_group": {
-			MinLen:             1,
-			MaxLen:             255,
-			Pattern:            regexp.MustCompile(`^[a-zA-Z0-9 ._\-:/()#,@\[\]+=&;{}!$*]+$`),
-			PatternDescription: "letters, numbers, spaces, and ._-:/()#,@[]+=&;{}!$*",
-			ForbiddenPrefixes:  []string{"sg-"},
-			CaseInsensitive:    true,
-		},
-	}
-}
-
-func defaultAzureCloudDefaults() (CloudDefaults, error) {
-	azureCAFDefaultsOnce.Do(func() {
-		var definitions []azureCAFResourceDefinition
-		if err := json.Unmarshal(azureCAFResourceDefinitionJSON, &definitions); err != nil {
-			azureCAFDefaultsErr = fmt.Errorf("decode Azure CAF resource definitions: %w", err)
-			return
-		}
-
-		acronyms := make(map[string]string, len(definitions))
-		styleOverrides := make(map[string][]string, len(definitions))
-		constraints := make(map[string]ResourceConstraint, len(definitions))
-		regionalResources := make(map[string]bool, len(definitions))
-
-		for _, definition := range definitions {
-			name := strings.ToLower(strings.TrimSpace(definition.Name))
-			if name == "" {
-				continue
-			}
-
-			acronyms[name] = azureCAFResourceAcronym(definition.Slug, definition.Name)
-			styleOverrides[name] = azureCAFStyleOverrides(definition.Lowercase, definition.Dashes)
-			regionalResources[name] = azureCAFIsRegionalScope(definition.Scope)
-			constraints[name] = azureCAFConstraint(definition)
-		}
-
-		azureCAFDefaults = CloudDefaults{
-			RegionMap:              map[string]string{},
-			ResourceAcronyms:       acronyms,
-			ResourceStyleOverrides: styleOverrides,
-			ResourceConstraints:    constraints,
-			RegionalResources:      regionalResources,
-		}
-	})
-	if azureCAFDefaultsErr != nil {
-		return CloudDefaults{}, azureCAFDefaultsErr
-	}
-
-	return CloudDefaults{
-		RegionMap:              copyStringMap(azureCAFDefaults.RegionMap),
-		ResourceAcronyms:       copyStringMap(azureCAFDefaults.ResourceAcronyms),
-		ResourceStyleOverrides: copyStringSliceMap(azureCAFDefaults.ResourceStyleOverrides),
-		ResourceConstraints:    copyConstraintMap(azureCAFDefaults.ResourceConstraints),
-		RegionalResources:      copyBoolMap(azureCAFDefaults.RegionalResources),
-	}, nil
-}
-
-func azureCAFConstraint(definition azureCAFResourceDefinition) ResourceConstraint {
-	constraint := ResourceConstraint{
-		MinLen: definition.MinLength,
-		MaxLen: definition.MaxLength,
-	}
-
-	regexValue := strings.TrimSpace(definition.ValidationRegex)
-	regexValue = strings.Trim(regexValue, `"`)
-	if regexValue == "" {
-		return constraint
-	}
-
-	constraint.PatternDescription = fmt.Sprintf("must match Azure CAF regex %q", regexValue)
-	pattern, err := regexp.Compile(regexValue)
-	if err != nil {
-		return constraint
-	}
-	constraint.Pattern = pattern
-	return constraint
-}
-
-func azureCAFStyleOverrides(lowercase, dashes bool) []string {
-	styles := []string{}
-	if lowercase {
-		if dashes {
-			styles = append(styles, StyleDashed)
-		}
-		styles = append(styles, StyleStraight)
-		return styles
-	}
-
-	if dashes {
-		styles = append(styles, StyleDashed, StylePascalDashed)
-	}
-	styles = append(styles, StylePascal, StyleCamel, StyleStraight)
-	return styles
-}
-
-func azureCAFResourceAcronym(slug, name string) string {
-	base := toLowerAlnum(slug)
-	fallback := toLowerAlnum(name)
-	for len(base) < 4 && fallback != "" {
-		base += fallback[:1]
-		fallback = fallback[1:]
-	}
-	for len(base) < 4 {
-		base += "x"
-	}
-	return base[:4]
-}
-
-func azureCAFIsRegionalScope(scope string) bool {
-	switch strings.ToLower(strings.TrimSpace(scope)) {
-	case "resourcegroup", "region", "location", "parent":
-		return true
-	default:
-		return false
-	}
-}
-
 func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
-	regionCode := strings.TrimSpace(cfg.RegionShortCode)
-	region := strings.TrimSpace(cfg.Region)
+	effective := cfg
+	if len(effective.RegionMap) == 0 || len(effective.ResourceAcronyms) == 0 || len(effective.ResourceStyleOverrides) == 0 || len(effective.ResourceConstraints) == 0 || len(effective.RegionalResources) == 0 {
+		defaults, err := DefaultCloudDefaults(effective.Cloud)
+		if err != nil {
+			return BuildResult{}, err
+		}
+		if len(effective.RegionMap) == 0 {
+			effective.RegionMap = defaults.RegionMap
+		}
+		if len(effective.ResourceAcronyms) == 0 {
+			effective.ResourceAcronyms = defaults.ResourceAcronyms
+		}
+		if len(effective.ResourceStyleOverrides) == 0 {
+			effective.ResourceStyleOverrides = defaults.ResourceStyleOverrides
+		}
+		if len(effective.ResourceConstraints) == 0 {
+			effective.ResourceConstraints = defaults.ResourceConstraints
+		}
+		if len(effective.RegionalResources) == 0 {
+			effective.RegionalResources = defaults.RegionalResources
+		}
+	}
+
+	regionCode := strings.TrimSpace(effective.RegionShortCode)
+	region := strings.TrimSpace(effective.Region)
 	if regionCode == "" && region != "" {
-		regionCode = strings.TrimSpace(cfg.RegionMap[region])
+		regionCode = strings.TrimSpace(effective.RegionMap[region])
 		if regionCode == "" {
 			regionCode = region
 		}
@@ -551,21 +111,21 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	resourceKey := strings.ToLower(strings.TrimSpace(in.Resource))
 	resourceAcronym := strings.TrimSpace(in.Resource)
 	if resourceKey != "" {
-		if v, ok := cfg.ResourceAcronyms[resourceKey]; ok && v != "" {
+		if v, ok := effective.ResourceAcronyms[resourceKey]; ok && v != "" {
 			resourceAcronym = v
 		}
 	}
 
 	components := map[string]string{
-		"org":       strings.TrimSpace(cfg.OrgPrefix),
-		"proj":      strings.TrimSpace(cfg.Project),
-		"env":       strings.TrimSpace(cfg.Env),
+		"org":       strings.TrimSpace(effective.OrgPrefix),
+		"proj":      strings.TrimSpace(effective.Project),
+		"env":       strings.TrimSpace(effective.Env),
 		"region":    strings.TrimSpace(regionCode),
 		"resource":  strings.TrimSpace(resourceAcronym),
 		"qualifier": strings.TrimSpace(in.Qualifier),
 	}
 
-	if cfg.IgnoreRegionForRegionalResources && isRegionalResource(resourceKey, cfg.RegionalResources) {
+	if effective.IgnoreRegionForRegionalResources && isRegionalResource(resourceKey, effective.RegionalResources) {
 		components["region"] = ""
 	}
 
@@ -588,7 +148,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	}
 	regionCode = components["region"]
 
-	recipe := cfg.Recipe
+	recipe := effective.Recipe
 	if len(in.Recipe) > 0 {
 		recipe = in.Recipe
 	}
@@ -615,7 +175,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 		parts = append(parts, val)
 	}
 
-	stylePriority := cfg.StylePriority
+	stylePriority := effective.StylePriority
 	if len(in.StylePriority) > 0 {
 		stylePriority = in.StylePriority
 	}
@@ -624,8 +184,8 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	}
 
 	allowedStyles := []string{}
-	if len(cfg.ResourceStyleOverrides) > 0 && resourceKey != "" {
-		if v, ok := cfg.ResourceStyleOverrides[resourceKey]; ok {
+	if len(effective.ResourceStyleOverrides) > 0 && resourceKey != "" {
+		if v, ok := effective.ResourceStyleOverrides[resourceKey]; ok {
 			allowedStyles = normalizeStyles(v)
 		}
 	}
@@ -650,7 +210,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
-	if err := validateResourceConstraints(resourceKey, name, cfg.ResourceConstraints); err != nil {
+	if err := validateResourceConstraints(resourceKey, name, effective.ResourceConstraints); err != nil {
 		return BuildResult{}, err
 	}
 
@@ -693,18 +253,12 @@ func isRegionalResource(resourceKey string, regionalResources map[string]bool) b
 	if resourceKey == "" {
 		return false
 	}
-	if regionalResources == nil {
-		regionalResources = DefaultRegionalResources()
-	}
 	return regionalResources[resourceKey]
 }
 
 func validateResourceConstraints(resourceKey, name string, constraints map[string]ResourceConstraint) error {
 	if resourceKey == "" || len(name) == 0 {
 		return nil
-	}
-	if len(constraints) == 0 {
-		constraints = DefaultResourceConstraints()
 	}
 	c, ok := constraints[resourceKey]
 	if !ok {
@@ -916,54 +470,4 @@ func containsString(list []string, value string) bool {
 		}
 	}
 	return false
-}
-
-func toLowerAlnum(value string) string {
-	var b strings.Builder
-	b.Grow(len(value))
-	for _, r := range value {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			b.WriteRune(unicode.ToLower(r))
-		}
-	}
-	return b.String()
-}
-
-func copyStringMap(in map[string]string) map[string]string {
-	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
-}
-
-func copyBoolMap(in map[string]bool) map[string]bool {
-	out := make(map[string]bool, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
-}
-
-func copyStringSliceMap(in map[string][]string) map[string][]string {
-	out := make(map[string][]string, len(in))
-	for key, value := range in {
-		cloned := make([]string, len(value))
-		copy(cloned, value)
-		out[key] = cloned
-	}
-	return out
-}
-
-func copyConstraintMap(in map[string]ResourceConstraint) map[string]ResourceConstraint {
-	out := make(map[string]ResourceConstraint, len(in))
-	keys := make([]string, 0, len(in))
-	for key := range in {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		out[key] = in[key]
-	}
-	return out
 }
