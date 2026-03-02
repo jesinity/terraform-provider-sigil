@@ -25,4 +25,9 @@ func TestResolveCloudPrecedence(t *testing.T) {
 	if resolved != naming.CloudAWS {
 		t.Fatalf("expected default cloud (%q), got %q", naming.CloudAWS, resolved)
 	}
+
+	resolved = resolveCloud(types.StringValue(naming.CloudGCP), providerConfigModel{}, false, providerConfigModel{}, false)
+	if resolved != naming.CloudGCP {
+		t.Fatalf("expected explicit top-level cloud (%q), got %q", naming.CloudGCP, resolved)
+	}
 }

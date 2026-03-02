@@ -163,3 +163,96 @@ func TestBuildNameAzureFallsBackToAllowedStyleWhenPriorityDoesNotMatch(t *testin
 		t.Fatalf("expected fallback style %q, got %q", StyleStraight, result.Style)
 	}
 }
+
+func TestDefaultCloudDefaultsGCP(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	if len(defaults.RegionMap) == 0 {
+		t.Fatal("expected GCP region map defaults to be populated")
+	}
+
+	if got := defaults.RegionMap["us-central1"]; got != "usc1" {
+		t.Fatalf("expected GCP region short code %q for us-central1, got %q", "usc1", got)
+	}
+
+	if got := defaults.ResourceAcronyms["google_storage_bucket"]; got != "gcs" {
+		t.Fatalf("expected GCP bucket acronym %q, got %q", "gcs", got)
+	}
+	if got := defaults.ResourceAcronyms["google_compute_network"]; got != "vpc" {
+		t.Fatalf("expected GCP network acronym %q, got %q", "vpc", got)
+	}
+	if got := defaults.ResourceAcronyms["google_compute_subnetwork"]; got != "snet" {
+		t.Fatalf("expected GCP subnetwork acronym %q, got %q", "snet", got)
+	}
+
+	styles := defaults.ResourceStyleOverrides["google_storage_bucket"]
+	if len(styles) == 0 {
+		t.Fatal("expected storage bucket style overrides to be populated")
+	}
+	if !containsString(styles, StyleDashed) || !containsString(styles, StyleUnderscore) || !containsString(styles, StyleStraight) {
+		t.Fatalf("expected bucket styles to include dashed, underscore, and straight; got %#v", styles)
+	}
+
+	if !defaults.RegionalResources["google_compute_subnetwork"] {
+		t.Fatal("expected google_compute_subnetwork to be marked regional")
+	}
+	if defaults.RegionalResources["google_storage_bucket"] {
+		t.Fatal("expected google_storage_bucket to be marked non-regional")
+	}
+}
+
+func TestBuildNameGCPBucketFallsBackToAllowedStyle(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	result, err := BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		Project:                "payments",
+		Env:                    "prod",
+		StylePriority:          []string{StylePascal},
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_storage_bucket",
+		Qualifier: "raw",
+		Recipe:    []string{"org", "proj", "env", "resource", "qualifier"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected build error: %v", err)
+	}
+
+	if result.Style != StyleDashed {
+		t.Fatalf("expected fallback style %q, got %q", StyleDashed, result.Style)
+	}
+}
+
+func TestBuildNameGCPBucketRejectsReservedGoogleSubstring(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_storage_bucket",
+		Qualifier: "google-data",
+		Recipe:    []string{"org", "qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected bucket constraint error, got nil")
+	}
+}
