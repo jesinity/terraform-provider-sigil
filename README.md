@@ -1,6 +1,10 @@
 # sigil
 
-Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, `azure` uses Azure CAF resource coverage, and `gcp` is available with starter resource coverage.
+Terraform provider for consistent resource naming across multiple clouds.
+
+*  `aws` is the default cloud profile
+*  `azure` uses Azure CAF resource coverage
+*  `gcp` is available with starter resource coverage.
 
 ## Provider Configuration
 
@@ -9,7 +13,7 @@ terraform {
   required_providers {
     sigil = {
       source  = "jesinity/sigil"
-      version = "1.0.0"
+      version = "~> 1.2.0"
     }
   }
 }
