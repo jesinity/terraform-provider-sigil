@@ -164,6 +164,87 @@ func TestBuildNameAzureFallsBackToAllowedStyleWhenPriorityDoesNotMatch(t *testin
 	}
 }
 
+func TestDefaultCloudDefaultsAzureRestrictiveStylesFromCAF(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAzure)
+	if err != nil {
+		t.Fatalf("unexpected error loading Azure defaults: %v", err)
+	}
+
+	if got := defaults.ResourceStyleOverrides["azurerm_storage_account"]; len(got) != 1 || got[0] != StyleStraight {
+		t.Fatalf("expected storage account styles to be [%q], got %#v", StyleStraight, got)
+	}
+
+	if got := defaults.ResourceStyleOverrides["azurerm_analysis_services_server"]; len(got) != 1 || got[0] != StyleStraight {
+		t.Fatalf("expected analysis services server styles to be [%q], got %#v", StyleStraight, got)
+	}
+
+	if got := defaults.ResourceStyleOverrides["azurerm_cdn_frontdoor_rule"]; len(got) != 3 || got[0] != StylePascal || got[1] != StyleCamel || got[2] != StyleStraight {
+		t.Fatalf("expected CDN Front Door rule styles to be [%q %q %q], got %#v", StylePascal, StyleCamel, StyleStraight, got)
+	}
+}
+
+func TestBuildNameAzureStorageAccountFallsBackFromDashedToStraightAndLowercase(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAzure)
+	if err != nil {
+		t.Fatalf("unexpected error loading Azure defaults: %v", err)
+	}
+
+	result, err := BuildName(Config{
+		Cloud:                            CloudAzure,
+		StylePriority:                    []string{StyleDashed, StylePascal, StyleCamel},
+		ResourceAcronyms:                 defaults.ResourceAcronyms,
+		ResourceStyleOverrides:           defaults.ResourceStyleOverrides,
+		ResourceConstraints:              defaults.ResourceConstraints,
+		RegionalResources:                defaults.RegionalResources,
+		IgnoreRegionForRegionalResources: false,
+	}, BuildInput{
+		Resource:  "azurerm_storage_account",
+		Qualifier: "data-lake",
+		Recipe:    []string{"resource", "qualifier"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected build error: %v", err)
+	}
+
+	if result.Style != StyleStraight {
+		t.Fatalf("expected fallback style %q, got %q", StyleStraight, result.Style)
+	}
+	if result.Name != "stdatalake" {
+		t.Fatalf("expected generated name %q, got %q", "stdatalake", result.Name)
+	}
+}
+
+func TestBuildNameAzureCdnFrontdoorRuleFallsBackFromDashedToPascal(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAzure)
+	if err != nil {
+		t.Fatalf("unexpected error loading Azure defaults: %v", err)
+	}
+
+	result, err := BuildName(Config{
+		Cloud:                            CloudAzure,
+		StylePriority:                    []string{StyleDashed, StylePascal, StyleCamel},
+		ResourceAcronyms:                 defaults.ResourceAcronyms,
+		ResourceStyleOverrides:           defaults.ResourceStyleOverrides,
+		ResourceConstraints:              defaults.ResourceConstraints,
+		RegionalResources:                defaults.RegionalResources,
+		IgnoreRegionForRegionalResources: false,
+	}, BuildInput{
+		Resource:  "azurerm_cdn_frontdoor_rule",
+		Qualifier: "edge-prod",
+		Recipe:    []string{"resource", "qualifier"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected build error: %v", err)
+	}
+
+	if result.Style != StylePascal {
+		t.Fatalf("expected fallback style %q, got %q", StylePascal, result.Style)
+	}
+	if result.Name != "CfdrEdgeProd" {
+		t.Fatalf("expected generated name %q, got %q", "CfdrEdgeProd", result.Name)
+	}
+}
+
 func TestDefaultCloudDefaultsGCP(t *testing.T) {
 	defaults, err := DefaultCloudDefaults(CloudGCP)
 	if err != nil {
@@ -176,6 +257,15 @@ func TestDefaultCloudDefaultsGCP(t *testing.T) {
 
 	if got := defaults.RegionMap["us-central1"]; got != "usc1" {
 		t.Fatalf("expected GCP region short code %q for us-central1, got %q", "usc1", got)
+	}
+	if got := defaults.RegionMap["northamerica-south1"]; got != "nas1" {
+		t.Fatalf("expected GCP region short code %q for northamerica-south1, got %q", "nas1", got)
+	}
+	if got := defaults.RegionMap["europe-north2"]; got != "eun2" {
+		t.Fatalf("expected GCP region short code %q for europe-north2, got %q", "eun2", got)
+	}
+	if got := defaults.RegionMap["asia-southeast3"]; got != "asse3" {
+		t.Fatalf("expected GCP region short code %q for asia-southeast3, got %q", "asse3", got)
 	}
 
 	if got := defaults.ResourceAcronyms["google_storage_bucket"]; got != "gcs" {
