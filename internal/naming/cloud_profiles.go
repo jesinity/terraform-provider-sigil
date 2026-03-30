@@ -5,6 +5,7 @@ import "fmt"
 const (
 	CloudAWS   = "aws"
 	CloudAzure = "azure"
+	CloudGCP   = "gcp"
 )
 
 type CloudDefaults struct {
@@ -23,6 +24,7 @@ type CloudProfile interface {
 var cloudProfiles = map[string]CloudProfile{
 	CloudAWS:   awsCloudProfile{},
 	CloudAzure: newAzureCloudProfile(),
+	CloudGCP:   gcpCloudProfile{},
 }
 
 func DefaultCloud() string {

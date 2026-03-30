@@ -117,7 +117,7 @@ func (p *SigilProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	cloud := resolveCloud(config.Cloud, baseConfig, hasBaseConfig, overrideConfig, hasOverrideConfig)
 	if !naming.IsSupportedCloud(cloud) {
-		resp.Diagnostics.AddError("Invalid cloud", fmt.Sprintf("Unsupported cloud %q. Valid values are %q and %q.", cloud, naming.CloudAWS, naming.CloudAzure))
+		resp.Diagnostics.AddError("Invalid cloud", fmt.Sprintf("Unsupported cloud %q. Valid values are %q, %q, and %q.", cloud, naming.CloudAWS, naming.CloudAzure, naming.CloudGCP))
 		return
 	}
 

@@ -1,6 +1,6 @@
 # sigil
 
-Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, and `azure` is supported with Azure CAF resource coverage.
+Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, `azure` uses Azure CAF resource coverage, and `gcp` is available with starter resource coverage.
 
 ## Provider Configuration
 
@@ -97,6 +97,23 @@ provider "sigil" {
   # resource_acronyms = {
   #   azurerm_storage_account = "st" # CAF default shown here as an explicit override example.
   # }
+}
+```
+
+GCP example (`cloud = "gcp"`):
+
+```hcl
+provider "sigil" {
+  cloud      = "gcp"
+  org_prefix = "acme"
+  project    = "payments"
+  env        = "prod"
+  region     = "us-central1"
+
+  # GCP starter coverage currently includes strict constraints for:
+  # - google_storage_bucket
+  # - google_compute_network
+  # - google_compute_subnetwork
 }
 ```
 
@@ -418,6 +435,87 @@ Sigil uses CAF acronyms directly by default. Use `resource_acronyms` only when y
 
 For the complete list of all 395 supported Azure resources and acronyms, see `azure-caf-resources.md`.
 
+## GCP Coverage and Strategy
+
+`cloud = "gcp"` is implemented with starter coverage. Unlike Azure CAF, Google Cloud does not provide a single official catalog that includes all Terraform resource identifiers, acronyms, scopes, and naming regex rules in one place.
+
+### Why GCP Needs a Different Approach
+
+- GCP naming rules are mostly per-service, not centralized.
+- Many resources are identified by fully-qualified paths (`projects/.../locations/.../...`) or server-generated IDs.
+- Some resources have both a technical identifier and a user-facing `display_name`, which need different handling.
+
+### Nameability Tiers
+
+Classify each `what` resource into one of these tiers:
+
+| Tier | Meaning | Sigil Behavior |
+| --- | --- | --- |
+| `tier_a_named` | Resource has a real user-controlled identifier (`name`, `bucket`, `project_id`, `account_id`, etc.) with documented constraints. | Full acronym + style + strict constraints (min/max/regex/forbidden patterns). |
+| `tier_b_display` | Primary identity is path-like or composite, but resource exposes `display_name`/labels for human naming. | Acronym + style only by default; no hard validation unless an explicit documented constraint exists. |
+| `tier_c_opaque` | No stable user-defined name (provider/API generated IDs, bindings/memberships, attachment resources). | No strict naming profile; resource should not be targeted for canonical Sigil naming. |
+
+### Constraint Policy
+
+Apply strict validation only where deterministic and well-documented:
+
+1. `strict` for `tier_a_named` resources with authoritative naming rules.
+2. `best_effort` for `tier_b_display` resources (formatting consistency, usually no hard fail).
+3. `none` for `tier_c_opaque` resources.
+
+This avoids false failures on resources that are not truly user-nameable.
+
+### Current Starter Coverage
+
+Starter Tier-A strict constraints are enabled for:
+
+- `google_storage_bucket` (plus aliases `gcs_bucket`, `gcs`)
+- `google_compute_network` (plus alias `vpc`)
+- `google_compute_subnetwork` (plus alias `subnet`)
+
+Additional starter acronyms/style profiles are included for common resources such as:
+
+- `google_pubsub_topic`, `google_pubsub_subscription`
+- `google_service_account`
+- `google_bigquery_dataset`
+- `google_artifact_registry_repository`
+- `google_cloud_run_v2_service`
+
+Unknown GCP resources remain permissive by default (acronym/style fallback, no hard constraints).
+
+### Expansion Plan
+
+1. Add constraints resource-family by resource-family, only when naming rules are explicit and stable.
+2. Keep path/ID-based resources in `tier_b_display` or `tier_c_opaque` mode by default.
+3. Add tests for each new constrained resource before adding it to defaults.
+
+### Initial Tier-A Candidate Set
+
+Prioritize resources with clear, stable naming specs:
+
+- `google_storage_bucket`
+- `google_pubsub_topic`, `google_pubsub_subscription`
+- `google_service_account` (`account_id`)
+- `google_compute_network`, `google_compute_subnetwork`
+- `google_bigquery_dataset`
+- `google_artifact_registry_repository`
+- `google_cloud_run_v2_service`
+
+### Data Sources for Coverage
+
+Use multiple inputs, because no GCP equivalent to Azure CAF exists:
+
+- Cloud Asset Inventory asset type list for broad resource inventory.
+- Terraform Google provider resource schemas for argument names and shape.
+- Service-specific Google Cloud documentation for authoritative naming constraints.
+
+### Definition of Done for GCP Support
+
+- Every supported GCP `what` is tagged with a tier.
+- Only `tier_a_named` resources enforce hard constraints.
+- Docs list supported GCP resources and constraint source for each.
+- Tests cover acronym resolution, style filtering, and constraint behavior for representative resources in each tier.
+
 ## Naming Styles
 
 Style priority determines how names are formatted. If a resource has style constraints, the provider selects the first allowed style in the priority list.
@@ -443,12 +541,13 @@ Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so pun
 Cloud-specific style overrides are applied automatically:
 - `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
+- `gcp`: starter resources include style restrictions for bucket/network naming compatibility.
 
 ## Resource Constraints
 
 Some resources have naming constraints enforced after formatting. The constraint name matches the `what` input (case-insensitive).
 
-The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`.
+The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, `google_compute_network`, and `google_compute_subnetwork` (including their aliases).
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |
@@ -477,7 +576,7 @@ Constraint types include minimum or maximum length, required pattern, forbidden 
 
 - `config` (Optional) Base configuration object; accepts the same keys as the top-level attributes.
 - `overrides` (Optional) Overrides applied after top-level attributes; accepts the same keys as the top-level attributes.
-- `cloud` (Optional) Cloud naming profile. Supported values are `aws` (default) and `azure`.
+- `cloud` (Optional) Cloud naming profile. Supported values are `aws` (default), `azure`, and `gcp`.
 - `org_prefix` (Required unless set in `config` or `overrides`) Short organization identifier.
 - `project` (Optional) Project or workload identifier.
 - `env` (Required unless set in `config` or `overrides`) Environment identifier, such as `dev`, `staging`, or `prod`.
@@ -500,3 +599,5 @@ If both `region_map` and `region_overrides` are set, overrides are applied to th
 When `ignore_region_for_regional_resources` is `true`, the region component is omitted for resources marked as regional unless explicitly overridden.
 
 `cloud = "azure"` loads Azure CAF resource defaults (acronyms, style rules, and regex constraints) from `resourceDefinition.json`, plus a built-in Azure region short code map.
+
+`cloud = "gcp"` loads starter GCP defaults (region short codes, foundational acronyms, and strict constraints for storage bucket, compute network, and compute subnetwork resources).
