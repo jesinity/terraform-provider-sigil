@@ -17,13 +17,18 @@ builds:
       - arm64
 
 archives:
-  - format: zip
+  - id: release-archives
+    ids:
+      - terraform-provider-sigil
+    format: zip
     name_template: "terraform-provider-sigil_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
 
 checksum:
+  ids:
+    - release-archives
   name_template: "terraform-provider-sigil_{{ .Version }}_SHA256SUMS"
 
 signs:
