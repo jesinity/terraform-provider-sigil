@@ -114,6 +114,10 @@ provider "sigil" {
   # - google_storage_bucket
   # - google_compute_network
   # - google_compute_subnetwork
+  # - google_pubsub_topic / google_pubsub_subscription
+  # - google_service_account
+  # - google_bigquery_dataset
+  # - google_cloud_run_v2_service
 }
 ```
 
@@ -439,6 +443,8 @@ For the complete list of all 395 supported Azure resources and acronyms, see `az
 
 `cloud = "gcp"` is implemented with starter coverage. Unlike Azure CAF, Google Cloud does not provide a single official catalog that includes all Terraform resource identifiers, acronyms, scopes, and naming regex rules in one place.
 
+Sigil accepts either Terraform-style GCP resource identifiers such as `google_compute_network` or normalized keys such as `compute_network`. The built-in GCP defaults are stored in normalized form and the optional `google_` prefix is resolved at lookup time.
+
 ### Why GCP Needs a Different Approach
 
 - GCP naming rules are mostly per-service, not centralized.
@@ -472,14 +478,34 @@ Starter Tier-A strict constraints are enabled for:
 - `google_storage_bucket` (plus aliases `gcs_bucket`, `gcs`)
 - `google_compute_network` (plus alias `vpc`)
 - `google_compute_subnetwork` (plus alias `subnet`)
-
-Additional starter acronyms/style profiles are included for common resources such as:
-
 - `google_pubsub_topic`, `google_pubsub_subscription`
 - `google_service_account`
 - `google_bigquery_dataset`
-- `google_artifact_registry_repository`
 - `google_cloud_run_v2_service`
+
+Starter Tier-B acronyms currently include compact 3-5 character codes for common resources such as:
+
+- `google_artifact_registry_repository`
+- `google_compute_router`, `google_compute_firewall`, `google_compute_address`, `google_compute_global_address`
+- `google_compute_route`, `google_compute_router_nat`
+- `google_compute_vpn_gateway`, `google_compute_vpn_tunnel`, `google_compute_ha_vpn_gateway`
+- `google_compute_url_map`, `google_compute_target_http_proxy`, `google_compute_target_https_proxy`
+- `google_compute_backend_service`, `google_compute_region_backend_service`
+- `google_compute_instance_template`, `google_compute_instance_group_manager`, `google_compute_region_instance_group_manager`
+- `google_compute_disk`, `google_compute_image`, `google_compute_snapshot`
+- `google_dns_managed_zone`
+- `google_secret_manager_secret`
+- `google_kms_key_ring`, `google_kms_crypto_key`
+- `google_sql_database_instance`
+- `google_container_cluster`, `google_container_node_pool`
+- `google_vpc_access_connector`
+- `google_redis_instance`, `google_memcache_instance`, `google_filestore_instance`
+- `google_spanner_instance`, `google_spanner_database`
+- `google_cloudbuild_trigger`, `google_eventarc_trigger`
+- `google_cloud_scheduler_job`, `google_cloud_tasks_queue`, `google_workflows_workflow`
+- `google_monitoring_notification_channel`
+- `google_logging_metric`, `google_logging_project_sink`
+- `google_pubsub_schema`, `google_pubsub_snapshot`
 
 Unknown GCP resources remain permissive by default (acronym/style fallback, no hard constraints).
 
@@ -489,17 +515,13 @@ Unknown GCP resources remain permissive by default (acronym/style fallback, no h
 2. Keep path/ID-based resources in `tier_b_display` or `tier_c_opaque` mode by default.
 3. Add tests for each new constrained resource before adding it to defaults.
 
-### Initial Tier-A Candidate Set
+### Remaining Tier-A Review Set
 
-Prioritize resources with clear, stable naming specs:
+The current open Tier-A review item is:
 
-- `google_storage_bucket`
-- `google_pubsub_topic`, `google_pubsub_subscription`
-- `google_service_account` (`account_id`)
-- `google_compute_network`, `google_compute_subnetwork`
-- `google_bigquery_dataset`
 - `google_artifact_registry_repository`
-- `google_cloud_run_v2_service`
+
+It already has a stable acronym, but strict validation should only be added once we pin an authoritative Google naming rule source for `repository_id`.
 
 ### Data Sources for Coverage
 
@@ -541,13 +563,13 @@ Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so pun
 Cloud-specific style overrides are applied automatically:
 - `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
-- `gcp`: starter resources include style restrictions for bucket/network naming compatibility.
+- `gcp`: starter resources include style restrictions for Tier-A compatibility, including bucket/network, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
 
 ## Resource Constraints
 
 Some resources have naming constraints enforced after formatting. The constraint name matches the `what` input (case-insensitive).
 
-The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, `google_compute_network`, and `google_compute_subnetwork` (including their aliases).
+The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, `google_compute_network`, `google_compute_subnetwork`, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including their aliases).
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |
@@ -600,4 +622,4 @@ When `ignore_region_for_regional_resources` is `true`, the region component is o
 
 `cloud = "azure"` loads Azure CAF resource defaults (acronyms, style rules, and regex constraints) from `resourceDefinition.json`, plus a built-in Azure region short code map.
 
-`cloud = "gcp"` loads starter GCP defaults (region short codes, foundational acronyms, and strict constraints for storage bucket, compute network, and compute subnetwork resources).
+`cloud = "gcp"` loads starter GCP defaults (region short codes, foundational acronyms, and strict constraints for storage bucket, network, subnetwork, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources).

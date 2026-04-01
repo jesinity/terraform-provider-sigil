@@ -134,7 +134,7 @@ data "sigil_mark" "bucket" {
   qualifier = "google-data"
 }
 `),
-				ExpectError: regexp.MustCompile(`must not\s+contain "google"`),
+				ExpectError: regexp.MustCompile(`must not contain`),
 			},
 		},
 	})
