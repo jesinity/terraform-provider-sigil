@@ -25,7 +25,7 @@ terraform {
 
     sigil = {
       source  = "jesinity/sigil"
-      version = "1.0.0"
+      version = "~> 1.3.0"
     }
   }
 }

@@ -13,7 +13,7 @@ terraform {
   required_providers {
     sigil = {
       source  = "jesinity/sigil"
-      version = "~> 1.2.0"
+      version = "~> 1.3.0"
     }
   }
 }
@@ -445,7 +445,7 @@ For the complete list of all 395 supported Azure resources and acronyms, see `do
 
 ## GCP Coverage and Strategy
 
-`cloud = "gcp"` is implemented with starter coverage. Unlike Azure CAF, Google Cloud does not provide a single official catalog that includes all Terraform resource identifiers, acronyms, scopes, and naming regex rules in one place.
+`cloud = "gcp"` : unlike Azure CAF, Google Cloud does not provide a single official catalog that includes all Terraform resource identifiers, acronyms, scopes, and naming regex rules in one place.
 
 Sigil accepts either Terraform-style GCP resource identifiers such as `google_compute_network` or normalized keys such as `compute_network`. The built-in GCP defaults are stored in normalized form and the optional `google_` prefix is resolved at lookup time.
 
@@ -487,7 +487,7 @@ Starter Tier-A strict constraints are enabled for:
 - `google_bigquery_dataset`
 - `google_cloud_run_v2_service`
 
-Starter Tier-B acronyms currently include compact 3-6 character codes for common resources such as:
+Tier-B acronyms currently include compact 3-6 character codes for common resources such as:
 
 - `google_artifact_registry_repository`
 - `google_compute_router`, `google_compute_firewall`, `google_compute_address`, `google_compute_global_address`
@@ -513,11 +513,6 @@ Starter Tier-B acronyms currently include compact 3-6 character codes for common
 
 Unknown GCP resources remain permissive by default (acronym/style fallback, no hard constraints).
 
-### Expansion Plan
-
-1. Add constraints resource-family by resource-family, only when naming rules are explicit and stable.
-2. Keep path/ID-based resources in `tier_b_display` or `tier_c_opaque` mode by default.
-3. Add tests for each new constrained resource before adding it to defaults.
 
 ### Remaining Tier-A Review Set
 
