@@ -5,7 +5,7 @@ Generates a resource name and its components using provider configuration, optio
 Behavior is cloud-aware:
 - `cloud = "aws"` uses built-in AWS acronyms and constraints.
 - `cloud = "azure"` uses Azure CAF resource definitions (acronyms, style rules, and regex constraints).
-- `cloud = "gcp"` uses starter GCP defaults with strict constraints for bucket/network/subnetwork, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources.
+- `cloud = "gcp"` uses built-in GCP defaults with strict constraints for supported storage, Compute Engine, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources.
 - CAF resource catalog JSON: https://github.com/aztfmod/terraform-provider-azurecaf/blob/main/resourceDefinition.json
 - Azure CAF examples: `azurerm_resource_group -> rg`, `azurerm_storage_account -> st`.
 
@@ -216,7 +216,7 @@ The data source selects the first valid style from `style_priority` (request-spe
 Cloud-specific style overrides are applied automatically:
 - `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
-- `gcp`: starter resources include style restrictions for Tier-A compatibility, including bucket/network, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
+- `gcp`: built-in constrained resources include style restrictions for compatibility with Google Cloud naming rules, including bucket, Compute Engine, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
 
 Valid styles and their output shapes:
 - `dashed` Lowercase words joined by `-`.
@@ -232,7 +232,7 @@ Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so pun
 
 Some resources enforce naming constraints after formatting. The constraint name is the `what` input (case-insensitive). If the computed name violates a constraint, the data source returns an error.
 
-The table below lists built-in `aws` constraints. Azure constraints are listed in `../azure-caf-resources.md` and sourced from Azure naming rules plus Azure CAF definitions. GCP starter constraints currently cover `google_storage_bucket`, `google_compute_network`, `google_compute_subnetwork`, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including aliases).
+The table below lists built-in `aws` constraints. Azure constraints are listed in `../azure-caf-resources.md` and sourced from Azure naming rules plus Azure CAF definitions. GCP built-in constraints currently cover `google_storage_bucket`, the named Compute Engine resources included in the default GCP acronym map, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including aliases).
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |

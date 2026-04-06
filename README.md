@@ -4,7 +4,7 @@ Terraform provider for consistent resource naming across multiple clouds.
 
 *  `aws` is the default cloud profile
 *  `azure` uses Azure CAF resource coverage
-*  `gcp` is available with starter resource coverage.
+*  `gcp` includes built-in resource coverage with strict constraints for supported resource families.
 
 ## Provider Configuration
 
@@ -114,10 +114,9 @@ provider "sigil" {
   env        = "prod"
   region     = "us-central1"
 
-  # GCP starter coverage currently includes strict constraints for:
+  # GCP built-in constraints currently cover:
   # - google_storage_bucket
-  # - google_compute_network
-  # - google_compute_subnetwork
+  # - named Compute Engine resources in the default GCP map
   # - google_pubsub_topic / google_pubsub_subscription
   # - google_service_account
   # - google_bigquery_dataset
@@ -475,19 +474,40 @@ Apply strict validation only where deterministic and well-documented:
 
 This avoids false failures on resources that are not truly user-nameable.
 
-### Current Starter Coverage
+### Current Coverage
 
-Starter Tier-A strict constraints are enabled for:
+Strict constraints are enabled for:
 
 - `google_storage_bucket` (plus aliases `gcs_bucket`, `gcs`)
-- `google_compute_network` (plus alias `vpc`)
-- `google_compute_subnetwork` (plus alias `subnet`)
+- named Compute Engine resources in the default GCP map, including:
+  `google_compute_network` / `vpc`,
+  `google_compute_subnetwork` / `subnet`,
+  `google_compute_router`,
+  `google_compute_firewall`,
+  `google_compute_address`,
+  `google_compute_global_address`,
+  `google_compute_route`,
+  `google_compute_router_nat`,
+  `google_compute_vpn_gateway`,
+  `google_compute_vpn_tunnel`,
+  `google_compute_ha_vpn_gateway`,
+  `google_compute_url_map`,
+  `google_compute_target_http_proxy`,
+  `google_compute_target_https_proxy`,
+  `google_compute_backend_service`,
+  `google_compute_region_backend_service`,
+  `google_compute_instance_template`,
+  `google_compute_instance_group_manager`,
+  `google_compute_region_instance_group_manager`,
+  `google_compute_disk`,
+  `google_compute_image`,
+  `google_compute_snapshot`
 - `google_pubsub_topic`, `google_pubsub_subscription`
 - `google_service_account`
 - `google_bigquery_dataset`
 - `google_cloud_run_v2_service`
 
-Tier-B acronyms currently include compact 3-6 character codes for common resources such as:
+Built-in acronyms also cover additional common GCP resources such as:
 
 - `google_artifact_registry_repository`
 - `google_compute_router`, `google_compute_firewall`, `google_compute_address`, `google_compute_global_address`
@@ -511,7 +531,7 @@ Tier-B acronyms currently include compact 3-6 character codes for common resourc
 - `google_logging_metric`, `google_logging_project_sink`
 - `google_pubsub_schema`, `google_pubsub_snapshot`
 
-Unknown GCP resources remain permissive by default (acronym/style fallback, no hard constraints).
+GCP resources outside the built-in map remain permissive by default (resource key fallback, default style handling, and no hard constraints).
 
 
 ### Remaining Tier-A Review Set
@@ -562,13 +582,13 @@ Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so pun
 Cloud-specific style overrides are applied automatically:
 - `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
-- `gcp`: starter resources include style restrictions for Tier-A compatibility, including bucket/network, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
+- `gcp`: built-in constrained resources include style restrictions for compatibility with Google Cloud naming rules, including bucket, Compute Engine, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
 
 ## Resource Constraints
 
 Some resources have naming constraints enforced after formatting. The constraint name matches the `what` input (case-insensitive).
 
-The table below lists built-in `aws` constraints. Azure constraints are listed in `docs/azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, the named Compute Engine resources included in the default GCP acronym map, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including their aliases).
+The table below lists built-in `aws` constraints. Azure constraints are listed in `docs/azure-caf-resources.md`. GCP built-in constraints currently cover `google_storage_bucket`, the named Compute Engine resources included in the default GCP acronym map, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including their aliases).
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |
