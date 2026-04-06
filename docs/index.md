@@ -483,7 +483,7 @@ Starter Tier-A strict constraints are enabled for:
 - `google_bigquery_dataset`
 - `google_cloud_run_v2_service`
 
-Starter Tier-B acronyms currently include compact 3-5 character codes for common resources such as:
+Starter Tier-B acronyms currently include compact 3-6 character codes for common resources such as:
 
 - `google_artifact_registry_repository`
 - `google_compute_router`, `google_compute_firewall`, `google_compute_address`, `google_compute_global_address`
@@ -569,7 +569,7 @@ Cloud-specific style overrides are applied automatically:
 
 Some resources have naming constraints enforced after formatting. The constraint name matches the `what` input (case-insensitive).
 
-The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, `google_compute_network`, `google_compute_subnetwork`, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including their aliases).
+The table below lists built-in `aws` constraints. Azure constraints are listed in `azure-caf-resources.md`. GCP starter constraints currently cover `google_storage_bucket`, the named Compute Engine resources included in the default GCP acronym map, `google_pubsub_topic`, `google_pubsub_subscription`, `google_service_account`, `google_bigquery_dataset`, and `google_cloud_run_v2_service` (including their aliases).
 
 | Resource | Min | Max | Pattern | Notes |
 | --- | --- | --- | --- | --- |
@@ -592,7 +592,7 @@ The table below lists built-in `aws` constraints. Azure constraints are listed i
 | `sec_group` | 1 | 255 | letters, numbers, spaces, and `._-:/()#,@[]+=&;{}!$*` | Forbidden prefix: `sg-` (case-insensitive) |
 | `security_group` | 1 | 255 | letters, numbers, spaces, and `._-:/()#,@[]+=&;{}!$*` | Forbidden prefix: `sg-` (case-insensitive) |
 
-Constraint types include minimum or maximum length, required pattern, forbidden prefixes or suffixes, forbidden substrings, and checks that the name is not formatted as an IPv4 address.
+Constraint types include minimum or maximum length, required pattern, forbidden prefixes or suffixes, forbidden substrings, forbidden regex patterns, and checks that the name is not formatted as an IPv4 address.
 
 ## Argument Reference
 
@@ -622,4 +622,4 @@ When `ignore_region_for_regional_resources` is `true`, the region component is o
 
 `cloud = "azure"` loads Azure CAF resource defaults (acronyms, style rules, and regex constraints) from `resourceDefinition.json`, plus a built-in Azure region short code map.
 
-`cloud = "gcp"` loads starter GCP defaults (region short codes, foundational acronyms, and strict constraints for storage bucket, network, subnetwork, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources).
+`cloud = "gcp"` loads starter GCP defaults (region short codes, foundational acronyms, and strict constraints for storage bucket, named Compute Engine resources in the default acronym map, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources).

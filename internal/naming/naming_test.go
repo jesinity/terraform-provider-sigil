@@ -277,14 +277,35 @@ func TestDefaultCloudDefaultsGCP(t *testing.T) {
 	if got := defaults.ResourceAcronyms["compute_subnetwork"]; got != "snet" {
 		t.Fatalf("expected GCP subnetwork acronym %q, got %q", "snet", got)
 	}
-	if got := defaults.ResourceAcronyms["compute_router"]; got != "rtr" {
-		t.Fatalf("expected GCP router acronym %q, got %q", "rtr", got)
+	if got := defaults.ResourceAcronyms["compute_router"]; got != "crtr" {
+		t.Fatalf("expected GCP router acronym %q, got %q", "crtr", got)
 	}
-	if got := defaults.ResourceAcronyms["compute_target_https_proxy"]; got != "thps" {
-		t.Fatalf("expected GCP target HTTPS proxy acronym %q, got %q", "thps", got)
+	if got := defaults.ResourceAcronyms["compute_firewall"]; got != "cfwl" {
+		t.Fatalf("expected GCP firewall acronym %q, got %q", "cfwl", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_global_address"]; got != "gaddr" {
+		t.Fatalf("expected GCP global address acronym %q, got %q", "gaddr", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_target_https_proxy"]; got != "cthps" {
+		t.Fatalf("expected GCP target HTTPS proxy acronym %q, got %q", "cthps", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_region_backend_service"]; got != "crbs" {
+		t.Fatalf("expected GCP regional backend service acronym %q, got %q", "crbs", got)
 	}
 	if got := defaults.ResourceAcronyms["dns_managed_zone"]; got != "dnsz" {
 		t.Fatalf("expected GCP DNS managed zone acronym %q, got %q", "dnsz", got)
+	}
+	if got := defaults.ResourceAcronyms["sql_database_instance"]; got != "sqli" {
+		t.Fatalf("expected GCP SQL instance acronym %q, got %q", "sqli", got)
+	}
+	if got := defaults.ResourceAcronyms["container_cluster"]; got != "gkec" {
+		t.Fatalf("expected GCP GKE cluster acronym %q, got %q", "gkec", got)
+	}
+	if got := defaults.ResourceAcronyms["gke_cluster"]; got != "gkec" {
+		t.Fatalf("expected GCP GKE cluster alias acronym %q, got %q", "gkec", got)
+	}
+	if got := defaults.ResourceAcronyms["gke_node_pool"]; got != "gkenp" {
+		t.Fatalf("expected GCP GKE node pool alias acronym %q, got %q", "gkenp", got)
 	}
 	if got := defaults.ResourceAcronyms["workflows_workflow"]; got != "wflw" {
 		t.Fatalf("expected GCP workflow acronym %q, got %q", "wflw", got)
@@ -368,6 +389,29 @@ func TestBuildNameGCPBucketRejectsReservedGoogleSubstring(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected bucket constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPBucketRejectsGoogleLookalike(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_storage_bucket",
+		Qualifier: "g00gle-data",
+		Recipe:    []string{"org", "qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected bucket lookalike constraint error, got nil")
 	}
 }
 
@@ -468,6 +512,31 @@ func TestBuildNameGCPCloudRunRejectsLeadingDigit(t *testing.T) {
 	}
 }
 
+func TestBuildNameGCPComputeRouterRejectsUnderscoreStyle(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		Env:                    "dev",
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:      "google_compute_router",
+		Qualifier:     "edge",
+		Recipe:        []string{"org", "env", "resource", "qualifier"},
+		StylePriority: []string{StyleUnderscore},
+	})
+	if err == nil {
+		t.Fatal("expected compute router constraint error, got nil")
+	}
+}
+
 func TestDefaultGCPPrimaryResourceAcronymsAreUnique(t *testing.T) {
 	acronyms := DefaultGCPResourceAcronyms()
 	owners := map[string]string{}
@@ -510,7 +579,7 @@ func TestDefaultGCPPrimaryResourceAcronymsStayCompact(t *testing.T) {
 		if aliases[resource] {
 			continue
 		}
-		if len(acronym) < 3 || len(acronym) > 5 {
+		if len(acronym) < 3 || len(acronym) > 6 {
 			t.Fatalf("expected compact GCP acronym for %q, got %q", resource, acronym)
 		}
 	}

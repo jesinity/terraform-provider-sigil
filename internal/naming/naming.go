@@ -64,6 +64,7 @@ type ResourceConstraint struct {
 	ForbiddenPrefixes   []string
 	ForbiddenSuffixes   []string
 	ForbiddenSubstrings []string
+	ForbiddenPatterns   []*regexp.Regexp
 	DisallowIPAddress   bool
 	CaseInsensitive     bool
 }
@@ -382,6 +383,16 @@ func validateResourceConstraints(resourceKeys []string, name string, constraints
 			}
 			if strings.Contains(comparisonName, candidate) {
 				return fmt.Errorf("resource %q name %q must not contain %q", resourceKey, name, sub)
+			}
+		}
+	}
+	if len(c.ForbiddenPatterns) > 0 {
+		for _, pattern := range c.ForbiddenPatterns {
+			if pattern == nil {
+				continue
+			}
+			if pattern.MatchString(name) {
+				return fmt.Errorf("resource %q name %q must not match forbidden pattern %q", resourceKey, name, pattern.String())
 			}
 		}
 	}
