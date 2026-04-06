@@ -64,6 +64,7 @@ type ResourceConstraint struct {
 	ForbiddenPrefixes   []string
 	ForbiddenSuffixes   []string
 	ForbiddenSubstrings []string
+	ForbiddenPatterns   []*regexp.Regexp
 	DisallowIPAddress   bool
 	CaseInsensitive     bool
 }
@@ -110,9 +111,10 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	}
 
 	resourceKey := strings.ToLower(strings.TrimSpace(in.Resource))
+	resourceLookupKeys := resourceLookupCandidates(effective.Cloud, resourceKey)
 	resourceAcronym := strings.TrimSpace(in.Resource)
 	if resourceKey != "" {
-		if v, ok := effective.ResourceAcronyms[resourceKey]; ok && v != "" {
+		if v, ok := lookupResourceAcronym(resourceLookupKeys, effective.ResourceAcronyms); ok && v != "" {
 			resourceAcronym = v
 		}
 	}
@@ -126,7 +128,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 		"qualifier": strings.TrimSpace(in.Qualifier),
 	}
 
-	if effective.IgnoreRegionForRegionalResources && isRegionalResource(resourceKey, effective.RegionalResources) {
+	if effective.IgnoreRegionForRegionalResources && isRegionalResource(resourceLookupKeys, effective.RegionalResources) {
 		components["region"] = ""
 	}
 
@@ -186,7 +188,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 
 	allowedStyles := []string{}
 	if len(effective.ResourceStyleOverrides) > 0 && resourceKey != "" {
-		if v, ok := effective.ResourceStyleOverrides[resourceKey]; ok {
+		if v, ok := lookupResourceStyles(resourceLookupKeys, effective.ResourceStyleOverrides); ok {
 			allowedStyles = normalizeStyles(v)
 		}
 	}
@@ -216,7 +218,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
-	if err := validateResourceConstraints(resourceKey, name, effective.ResourceConstraints); err != nil {
+	if err := validateResourceConstraints(resourceLookupKeys, name, effective.ResourceConstraints); err != nil {
 		return BuildResult{}, err
 	}
 
@@ -255,18 +257,73 @@ func normalizeStyle(style string) string {
 	return strings.ToLower(strings.TrimSpace(style))
 }
 
-func isRegionalResource(resourceKey string, regionalResources map[string]bool) bool {
+func resourceLookupCandidates(cloud, resourceKey string) []string {
+	resourceKey = strings.ToLower(strings.TrimSpace(resourceKey))
 	if resourceKey == "" {
-		return false
-	}
-	return regionalResources[resourceKey]
-}
-
-func validateResourceConstraints(resourceKey, name string, constraints map[string]ResourceConstraint) error {
-	if resourceKey == "" || len(name) == 0 {
 		return nil
 	}
-	c, ok := constraints[resourceKey]
+
+	keys := []string{resourceKey}
+	if NormalizeCloud(cloud) == CloudGCP && strings.HasPrefix(resourceKey, "google_") {
+		keys = append(keys, strings.TrimPrefix(resourceKey, "google_"))
+	}
+
+	out := make([]string, 0, len(keys))
+	seen := map[string]bool{}
+	for _, key := range keys {
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, key)
+	}
+	return out
+}
+
+func lookupResourceAcronym(resourceKeys []string, acronyms map[string]string) (string, bool) {
+	for _, resourceKey := range resourceKeys {
+		if v, ok := acronyms[resourceKey]; ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+func lookupResourceStyles(resourceKeys []string, styles map[string][]string) ([]string, bool) {
+	for _, resourceKey := range resourceKeys {
+		if v, ok := styles[resourceKey]; ok {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+func lookupResourceConstraint(resourceKeys []string, constraints map[string]ResourceConstraint) (string, ResourceConstraint, bool) {
+	for _, resourceKey := range resourceKeys {
+		if v, ok := constraints[resourceKey]; ok {
+			return resourceKey, v, true
+		}
+	}
+	return "", ResourceConstraint{}, false
+}
+
+func isRegionalResource(resourceKeys []string, regionalResources map[string]bool) bool {
+	if len(resourceKeys) == 0 {
+		return false
+	}
+	for _, resourceKey := range resourceKeys {
+		if regionalResources[resourceKey] {
+			return true
+		}
+	}
+	return false
+}
+
+func validateResourceConstraints(resourceKeys []string, name string, constraints map[string]ResourceConstraint) error {
+	if len(resourceKeys) == 0 || len(name) == 0 {
+		return nil
+	}
+	resourceKey, c, ok := lookupResourceConstraint(resourceKeys, constraints)
 	if !ok {
 		return nil
 	}
@@ -326,6 +383,16 @@ func validateResourceConstraints(resourceKey, name string, constraints map[strin
 			}
 			if strings.Contains(comparisonName, candidate) {
 				return fmt.Errorf("resource %q name %q must not contain %q", resourceKey, name, sub)
+			}
+		}
+	}
+	if len(c.ForbiddenPatterns) > 0 {
+		for _, pattern := range c.ForbiddenPatterns {
+			if pattern == nil {
+				continue
+			}
+			if pattern.MatchString(name) {
+				return fmt.Errorf("resource %q name %q must not match forbidden pattern %q", resourceKey, name, pattern.String())
 			}
 		}
 	}

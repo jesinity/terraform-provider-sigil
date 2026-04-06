@@ -268,17 +268,53 @@ func TestDefaultCloudDefaultsGCP(t *testing.T) {
 		t.Fatalf("expected GCP region short code %q for asia-southeast3, got %q", "asse3", got)
 	}
 
-	if got := defaults.ResourceAcronyms["google_storage_bucket"]; got != "gcs" {
+	if got := defaults.ResourceAcronyms["storage_bucket"]; got != "gcs" {
 		t.Fatalf("expected GCP bucket acronym %q, got %q", "gcs", got)
 	}
-	if got := defaults.ResourceAcronyms["google_compute_network"]; got != "vpc" {
+	if got := defaults.ResourceAcronyms["compute_network"]; got != "vpc" {
 		t.Fatalf("expected GCP network acronym %q, got %q", "vpc", got)
 	}
-	if got := defaults.ResourceAcronyms["google_compute_subnetwork"]; got != "snet" {
+	if got := defaults.ResourceAcronyms["compute_subnetwork"]; got != "snet" {
 		t.Fatalf("expected GCP subnetwork acronym %q, got %q", "snet", got)
 	}
+	if got := defaults.ResourceAcronyms["compute_router"]; got != "crtr" {
+		t.Fatalf("expected GCP router acronym %q, got %q", "crtr", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_firewall"]; got != "cfwl" {
+		t.Fatalf("expected GCP firewall acronym %q, got %q", "cfwl", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_global_address"]; got != "gaddr" {
+		t.Fatalf("expected GCP global address acronym %q, got %q", "gaddr", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_target_https_proxy"]; got != "cthps" {
+		t.Fatalf("expected GCP target HTTPS proxy acronym %q, got %q", "cthps", got)
+	}
+	if got := defaults.ResourceAcronyms["compute_region_backend_service"]; got != "crbs" {
+		t.Fatalf("expected GCP regional backend service acronym %q, got %q", "crbs", got)
+	}
+	if got := defaults.ResourceAcronyms["dns_managed_zone"]; got != "dnsz" {
+		t.Fatalf("expected GCP DNS managed zone acronym %q, got %q", "dnsz", got)
+	}
+	if got := defaults.ResourceAcronyms["sql_database_instance"]; got != "sqli" {
+		t.Fatalf("expected GCP SQL instance acronym %q, got %q", "sqli", got)
+	}
+	if got := defaults.ResourceAcronyms["container_cluster"]; got != "gkec" {
+		t.Fatalf("expected GCP GKE cluster acronym %q, got %q", "gkec", got)
+	}
+	if got := defaults.ResourceAcronyms["gke_cluster"]; got != "gkec" {
+		t.Fatalf("expected GCP GKE cluster alias acronym %q, got %q", "gkec", got)
+	}
+	if got := defaults.ResourceAcronyms["gke_node_pool"]; got != "gkenp" {
+		t.Fatalf("expected GCP GKE node pool alias acronym %q, got %q", "gkenp", got)
+	}
+	if got := defaults.ResourceAcronyms["workflows_workflow"]; got != "wflw" {
+		t.Fatalf("expected GCP workflow acronym %q, got %q", "wflw", got)
+	}
+	if _, ok := defaults.ResourceAcronyms["google_compute_network"]; ok {
+		t.Fatal("expected GCP defaults to normalize rather than store google_* resource keys")
+	}
 
-	styles := defaults.ResourceStyleOverrides["google_storage_bucket"]
+	styles := defaults.ResourceStyleOverrides["storage_bucket"]
 	if len(styles) == 0 {
 		t.Fatal("expected storage bucket style overrides to be populated")
 	}
@@ -286,11 +322,20 @@ func TestDefaultCloudDefaultsGCP(t *testing.T) {
 		t.Fatalf("expected bucket styles to include dashed, underscore, and straight; got %#v", styles)
 	}
 
-	if !defaults.RegionalResources["google_compute_subnetwork"] {
-		t.Fatal("expected google_compute_subnetwork to be marked regional")
+	if !defaults.RegionalResources["compute_subnetwork"] {
+		t.Fatal("expected compute_subnetwork to be marked regional")
 	}
-	if defaults.RegionalResources["google_storage_bucket"] {
-		t.Fatal("expected google_storage_bucket to be marked non-regional")
+	if defaults.RegionalResources["storage_bucket"] {
+		t.Fatal("expected storage_bucket to be marked non-regional")
+	}
+	if defaults.RegionalResources["compute_firewall"] {
+		t.Fatal("expected compute_firewall to be marked non-regional")
+	}
+	if defaults.RegionalResources["compute_global_address"] {
+		t.Fatal("expected compute_global_address to be marked non-regional")
+	}
+	if !defaults.RegionalResources["compute_router_nat"] {
+		t.Fatal("expected compute_router_nat to be marked regional")
 	}
 }
 
@@ -344,5 +389,198 @@ func TestBuildNameGCPBucketRejectsReservedGoogleSubstring(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected bucket constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPBucketRejectsGoogleLookalike(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_storage_bucket",
+		Qualifier: "g00gle-data",
+		Recipe:    []string{"org", "qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected bucket lookalike constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPPubSubTopicRejectsGoogPrefix(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_pubsub_topic",
+		Qualifier: "goog-events",
+		Recipe:    []string{"qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected pubsub constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPServiceAccountRejectsShortNames(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_service_account",
+		Qualifier: "svc1",
+		Recipe:    []string{"qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected service account constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPBigQueryDatasetFallsBackToStraightStyle(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	result, err := BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		Project:                "analytics",
+		StylePriority:          []string{StyleDashed},
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource: "google_bigquery_dataset",
+		Recipe:   []string{"org", "proj"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected build error: %v", err)
+	}
+
+	if result.Style != StyleStraight {
+		t.Fatalf("expected fallback style %q, got %q", StyleStraight, result.Style)
+	}
+	if result.Name != "acmeanalytics" {
+		t.Fatalf("expected generated name %q, got %q", "acmeanalytics", result.Name)
+	}
+}
+
+func TestBuildNameGCPCloudRunRejectsLeadingDigit(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "google_cloud_run_v2_service",
+		Qualifier: "9api",
+		Recipe:    []string{"qualifier"},
+	})
+	if err == nil {
+		t.Fatal("expected cloud run constraint error, got nil")
+	}
+}
+
+func TestBuildNameGCPComputeRouterRejectsUnderscoreStyle(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudGCP)
+	if err != nil {
+		t.Fatalf("unexpected error loading GCP defaults: %v", err)
+	}
+
+	_, err = BuildName(Config{
+		Cloud:                  CloudGCP,
+		OrgPrefix:              "acme",
+		Env:                    "dev",
+		ResourceAcronyms:       defaults.ResourceAcronyms,
+		ResourceStyleOverrides: defaults.ResourceStyleOverrides,
+		ResourceConstraints:    defaults.ResourceConstraints,
+		RegionalResources:      defaults.RegionalResources,
+	}, BuildInput{
+		Resource:      "google_compute_router",
+		Qualifier:     "edge",
+		Recipe:        []string{"org", "env", "resource", "qualifier"},
+		StylePriority: []string{StyleUnderscore},
+	})
+	if err == nil {
+		t.Fatal("expected compute router constraint error, got nil")
+	}
+}
+
+func TestDefaultGCPPrimaryResourceAcronymsAreUnique(t *testing.T) {
+	acronyms := DefaultGCPResourceAcronyms()
+	owners := map[string]string{}
+	aliases := map[string]bool{
+		"gcs_bucket":        true,
+		"gcs":               true,
+		"vpc":               true,
+		"subnet":            true,
+		"cloud_run_service": true,
+		"sql_instance":      true,
+		"gke_cluster":       true,
+		"gke_node_pool":     true,
+	}
+
+	for resource, acronym := range acronyms {
+		if aliases[resource] {
+			continue
+		}
+		if previous, ok := owners[acronym]; ok {
+			t.Fatalf("duplicate GCP acronym %q for %q and %q", acronym, previous, resource)
+		}
+		owners[acronym] = resource
+	}
+}
+
+func TestDefaultGCPPrimaryResourceAcronymsStayCompact(t *testing.T) {
+	acronyms := DefaultGCPResourceAcronyms()
+	aliases := map[string]bool{
+		"gcs_bucket":        true,
+		"gcs":               true,
+		"vpc":               true,
+		"subnet":            true,
+		"cloud_run_service": true,
+		"sql_instance":      true,
+		"gke_cluster":       true,
+		"gke_node_pool":     true,
+	}
+
+	for resource, acronym := range acronyms {
+		if aliases[resource] {
+			continue
+		}
+		if len(acronym) < 3 || len(acronym) > 6 {
+			t.Fatalf("expected compact GCP acronym for %q, got %q", resource, acronym)
+		}
 	}
 }
