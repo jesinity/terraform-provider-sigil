@@ -1,6 +1,6 @@
 # sigil
 
-Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, `azure` uses Azure CAF resource coverage, and `gcp` includes built-in resource coverage with strict constraints for supported resource families.
+Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, including built-in data engineering and data science coverage for Athena, Glue, EMR, Kinesis, Lake Formation, Redshift, SageMaker, Bedrock, Bedrock Agents, and Bedrock AgentCore. `azure` uses Azure CAF resource coverage, and `gcp` includes built-in resource coverage with strict constraints for supported resource families.
 
 ## Provider Configuration
 
@@ -9,7 +9,7 @@ terraform {
   required_providers {
     sigil = {
       source  = "jesinity/sigil"
-      version = "1.1.0"
+      version = "~> 1.4.0"
     }
   }
 }
@@ -315,94 +315,369 @@ provider "sigil" {
 
 When `ignore_region_for_regional_resources` is `true` (default), the `region` component is omitted for resources marked as `regional` in the table below. Resources marked `global` keep the region component even when the flag is enabled. Set it to `false` to always include the region in names. You can still force a region per name via `overrides`. When the region is omitted, `region_code` will be empty unless overridden.
 
-## Resource Acronyms and Scope
+## AWS Coverage and Resource Acronyms
 
-Default resource acronyms and scope for `cloud = "aws"`. Scope is used by `ignore_region_for_regional_resources`. You can override acronyms with `resource_acronyms`.
+Sigil accepts canonical Terraform identifiers with or without the `aws_` prefix. Exact keys take precedence, and canonical aliases fall back to their legacy Sigil key without changing existing output.
 
-| Resource | Acronym | Scope |
+The AWS catalog contains **243 supported keys**:
+
+- **82 legacy keys**, preserved byte-for-byte from v1.3.0.
+- **153 exact Terraform resources** for the expanded data engineering, analytics, and ML services, each with an enforced naming constraint.
+- **8 service aliases** for Bedrock, Bedrock Agents, Bedrock AgentCore, DataZone, EMR, Kinesis, Lake Formation, and QuickSight.
+- **48 explicitly excluded Terraform resources** that have no independent name or standard tags.
+
+The audit is pinned to HashiCorp AWS provider commit [`63681ad6`](https://github.com/hashicorp/terraform-provider-aws/commit/63681ad684441377ec2f220729f21c3d115778ca). The only repeated acronym values are the intentional legacy aliases `role`/`iam_role` and `sfn`/`step_function`.
+
+`Surface` indicates where the generated value can be applied: a direct resource identifier, standard AWS tags, or an alias that resolves to another supported key.
+
+| Resource | Acronym | Scope | Surface |
+| --- | --- | --- | --- |
+| `acm_cert` | `acmc` | `regional` | Legacy alias |
+| `alb` | `albl` | `regional` | Legacy alias |
+| `api_gateway_model` | `agmd` | `regional` | Direct |
+| `api_gateway_rest_api` | `agra` | `regional` | Direct + tags |
+| `api_gateway_v2` | `agv2` | `regional` | Legacy alias |
+| `appsync` | `apsy` | `regional` | Legacy alias |
+| `athena` | `athn` | `regional` | Legacy alias |
+| `athena_capacity_reservation` | `athcr` | `regional` | Direct + tags |
+| `athena_data_catalog` | `athdc` | `regional` | Direct + tags |
+| `athena_database` | `athdb` | `regional` | Direct |
+| `athena_named_query` | `athnq` | `regional` | Direct |
+| `athena_prepared_statement` | `athps` | `regional` | Direct |
+| `athena_workgroup` | `athwg` | `regional` | Direct + tags |
+| `aurora_cluster` | `arcl` | `regional` | Legacy alias |
+| `autoscaling_group` | `asgr` | `regional` | Direct |
+| `bedrock` | `bdrk` | `regional` | Service alias |
+| `bedrock_custom_model` | `brcm` | `regional` | Direct + tags |
+| `bedrock_evaluation_job` | `brevj` | `regional` | Direct + tags |
+| `bedrock_guardrail` | `brgr` | `regional` | Direct + tags |
+| `bedrock_inference_profile` | `brip` | `regional` | Direct + tags |
+| `bedrock_provisioned_model_throughput` | `brpmt` | `regional` | Direct + tags |
+| `bedrockagent` | `brag` | `regional` | Service alias |
+| `bedrockagent_agent` | `braga` | `regional` | Direct + tags |
+| `bedrockagent_agent_action_group` | `bragg` | `regional` | Direct |
+| `bedrockagent_agent_alias` | `braal` | `regional` | Direct + tags |
+| `bedrockagent_agent_collaborator` | `bracl` | `regional` | Direct |
+| `bedrockagent_data_source` | `brads` | `regional` | Direct |
+| `bedrockagent_flow` | `brafl` | `regional` | Direct + tags |
+| `bedrockagent_knowledge_base` | `brakb` | `regional` | Direct + tags |
+| `bedrockagent_prompt` | `brapt` | `regional` | Direct + tags |
+| `bedrockagentcore` | `brac` | `regional` | Service alias |
+| `bedrockagentcore_agent_runtime` | `bracr` | `regional` | Direct + tags |
+| `bedrockagentcore_agent_runtime_endpoint` | `brace` | `regional` | Direct + tags |
+| `bedrockagentcore_api_key_credential_provider` | `brcak` | `regional` | Direct + tags |
+| `bedrockagentcore_browser` | `brcbr` | `regional` | Direct + tags |
+| `bedrockagentcore_browser_profile` | `brcbp` | `regional` | Direct + tags |
+| `bedrockagentcore_code_interpreter` | `brcci` | `regional` | Direct + tags |
+| `bedrockagentcore_evaluator` | `brcev` | `regional` | Direct + tags |
+| `bedrockagentcore_gateway` | `brcgw` | `regional` | Direct + tags |
+| `bedrockagentcore_gateway_target` | `brcgt` | `regional` | Direct |
+| `bedrockagentcore_harness` | `brchr` | `regional` | Direct + tags |
+| `bedrockagentcore_memory` | `brcme` | `regional` | Direct + tags |
+| `bedrockagentcore_memory_strategy` | `brcms` | `regional` | Direct |
+| `bedrockagentcore_oauth2_credential_provider` | `brco2` | `regional` | Direct + tags |
+| `bedrockagentcore_online_evaluation_config` | `brcoe` | `regional` | Direct + tags |
+| `bedrockagentcore_policy` | `brcpl` | `regional` | Direct |
+| `bedrockagentcore_policy_engine` | `brcpe` | `regional` | Direct + tags |
+| `bedrockagentcore_registry` | `brcrg` | `regional` | Direct |
+| `bedrockagentcore_workload_identity` | `brcwi` | `regional` | Direct |
+| `cloudformation_stack` | `cfst` | `regional` | Direct + tags |
+| `cloudfront` | `clfr` | `regional` | Legacy alias |
+| `cloudtrail` | `ctra` | `regional` | Direct + tags |
+| `cloudwatch_alarm` | `cwal` | `regional` | Legacy alias |
+| `cloudwatch_log_group` | `cwlg` | `regional` | Direct + tags |
+| `codebuild` | `cdbd` | `regional` | Legacy alias |
+| `codedeploy` | `cddp` | `regional` | Legacy alias |
+| `codepipeline` | `cdpl` | `regional` | Direct + tags |
+| `config_rule` | `cfrl` | `regional` | Legacy alias |
+| `datazone` | `dtzn` | `regional` | Service alias |
+| `datazone_asset_type` | `dzaty` | `regional` | Direct |
+| `datazone_domain` | `dzdmn` | `regional` | Direct |
+| `datazone_environment` | `dzenv` | `regional` | Direct |
+| `datazone_environment_profile` | `dzepf` | `regional` | Direct |
+| `datazone_form_type` | `dzfty` | `regional` | Direct |
+| `datazone_glossary` | `dzglo` | `regional` | Direct |
+| `datazone_glossary_term` | `dzglt` | `regional` | Direct |
+| `datazone_project` | `dzprj` | `regional` | Direct |
+| `datazone_user_profile` | `dzusr` | `regional` | Direct |
+| `dynamodb` | `dydb` | `regional` | Legacy alias |
+| `dynamodb_table` | `dybt` | `regional` | Direct + tags |
+| `ebs` | `ebs` | `regional` | Legacy alias |
+| `ec2_instance` | `ec2i` | `regional` | Legacy alias |
+| `ecr` | `ecr` | `regional` | Legacy alias |
+| `ecs` | `ecs` | `regional` | Legacy alias |
+| `ecs_cluster` | `ecsc` | `regional` | Direct + tags |
+| `ecs_service` | `ecss` | `regional` | Direct + tags |
+| `ecs_task` | `ecst` | `regional` | Legacy alias |
+| `efs` | `efs` | `regional` | Legacy alias |
+| `eks` | `eks` | `regional` | Legacy alias |
+| `eks_cluster` | `eksc` | `regional` | Direct + tags |
+| `eks_node_group` | `ekng` | `regional` | Direct + tags |
+| `elastic_ip` | `elip` | `regional` | Legacy alias |
+| `elasticache` | `elch` | `regional` | Legacy alias |
+| `elasticsearch` | `elsr` | `regional` | Legacy alias |
+| `elb` | `elbl` | `regional` | Direct + tags |
+| `emr` | `emr` | `regional` | Service alias |
+| `emr_cluster` | `emrc` | `regional` | Direct + tags |
+| `emr_instance_fleet` | `emrif` | `regional` | Direct |
+| `emr_instance_group` | `emrig` | `regional` | Direct |
+| `emr_security_configuration` | `emrsc` | `regional` | Direct |
+| `emr_studio` | `emrst` | `regional` | Direct + tags |
+| `emrcontainers_job_template` | `emrcj` | `regional` | Direct + tags |
+| `emrcontainers_virtual_cluster` | `emrcv` | `regional` | Direct + tags |
+| `emrserverless_application` | `emrsa` | `regional` | Direct + tags |
+| `eventbridge_bus` | `evbb` | `regional` | Legacy alias |
+| `eventbridge_rule` | `evbr` | `regional` | Legacy alias |
+| `glue` | `glue` | `regional` | Legacy alias |
+| `glue_catalog` | `glcat` | `regional` | Direct + tags |
+| `glue_catalog_database` | `glcdb` | `regional` | Direct + tags |
+| `glue_catalog_table` | `glctb` | `regional` | Direct |
+| `glue_classifier` | `glclf` | `regional` | Direct |
+| `glue_connection` | `glcon` | `regional` | Direct + tags |
+| `glue_crawler` | `glcrw` | `regional` | Direct + tags |
+| `glue_data_quality_ruleset` | `gldqr` | `regional` | Direct + tags |
+| `glue_dev_endpoint` | `gldev` | `regional` | Direct + tags |
+| `glue_job` | `gljob` | `regional` | Direct + tags |
+| `glue_ml_transform` | `glmlt` | `regional` | Direct + tags |
+| `glue_partition_index` | `glpix` | `regional` | Direct |
+| `glue_registry` | `glreg` | `regional` | Direct + tags |
+| `glue_schema` | `glsch` | `regional` | Direct + tags |
+| `glue_security_configuration` | `glsec` | `regional` | Direct |
+| `glue_trigger` | `gltrg` | `regional` | Direct + tags |
+| `glue_user_defined_function` | `gludf` | `regional` | Direct |
+| `glue_workflow` | `glwfl` | `regional` | Direct + tags |
+| `guardduty` | `gdty` | `regional` | Legacy alias |
+| `iam_group` | `iamg` | `regional` | Direct |
+| `iam_policy` | `iamp` | `regional` | Direct + tags |
+| `iam_role` | `role` | `regional` | Direct + tags |
+| `iam_user` | `iamu` | `regional` | Direct + tags |
+| `igw` | `igtw` | `regional` | Legacy alias |
+| `kinesis` | `knss` | `regional` | Service alias |
+| `kinesis_analytics_application` | `knsaa` | `regional` | Direct + tags |
+| `kinesis_firehose_delivery_stream` | `knsfh` | `regional` | Direct + tags |
+| `kinesis_stream` | `knsst` | `regional` | Direct + tags |
+| `kinesis_stream_consumer` | `knssc` | `regional` | Direct |
+| `kinesis_video_stream` | `knsvs` | `regional` | Direct + tags |
+| `kinesisanalyticsv2_application` | `knsv2` | `regional` | Direct + tags |
+| `kinesisanalyticsv2_application_snapshot` | `kns2s` | `regional` | Direct |
+| `kms_key` | `kmsk` | `regional` | Tags |
+| `lakeformation` | `lkfm` | `regional` | Service alias |
+| `lakeformation_data_cells_filter` | `lfdcf` | `regional` | Direct |
+| `lakeformation_lf_tag` | `lftag` | `regional` | Direct |
+| `lakeformation_lf_tag_expression` | `lftge` | `regional` | Direct |
+| `lambda` | `lmbd` | `regional` | Legacy alias |
+| `launch_template` | `lcht` | `regional` | Direct + tags |
+| `log_group` | `logg` | `regional` | Legacy alias |
+| `msk_cluster` | `mskc` | `regional` | Direct + tags |
+| `nacl` | `nacl` | `regional` | Legacy alias |
+| `nat_gw` | `ngtw` | `regional` | Legacy alias |
+| `nlb` | `nlbl` | `regional` | Legacy alias |
+| `opensearch` | `opsr` | `regional` | Legacy alias |
+| `quicksight` | `qkst` | `regional` | Service alias |
+| `quicksight_account_subscription` | `qsasu` | `regional` | Direct |
+| `quicksight_analysis` | `qsana` | `regional` | Direct + tags |
+| `quicksight_custom_permissions` | `qscpm` | `regional` | Direct + tags |
+| `quicksight_dashboard` | `qsdsh` | `regional` | Direct + tags |
+| `quicksight_data_set` | `qsds` | `regional` | Direct + tags |
+| `quicksight_data_source` | `qsdsr` | `regional` | Direct + tags |
+| `quicksight_folder` | `qsfld` | `regional` | Direct + tags |
+| `quicksight_group` | `qsgrp` | `regional` | Direct |
+| `quicksight_iam_policy_assignment` | `qsipa` | `regional` | Direct |
+| `quicksight_ingestion` | `qsing` | `regional` | Direct |
+| `quicksight_namespace` | `qsns` | `regional` | Tags |
+| `quicksight_refresh_schedule` | `qsref` | `regional` | Direct |
+| `quicksight_template` | `qstpl` | `regional` | Direct + tags |
+| `quicksight_template_alias` | `qstal` | `regional` | Direct |
+| `quicksight_theme` | `qsthm` | `regional` | Direct + tags |
+| `quicksight_user` | `qsusr` | `regional` | Direct |
+| `quicksight_vpc_connection` | `qsvpc` | `regional` | Direct + tags |
+| `rds` | `rds` | `regional` | Legacy alias |
+| `rds_cluster` | `rdsc` | `regional` | Direct + tags |
+| `redshift` | `rdsh` | `regional` | Legacy alias |
+| `redshift_authentication_profile` | `rsapf` | `regional` | Direct |
+| `redshift_cluster` | `rscl` | `regional` | Direct + tags |
+| `redshift_cluster_snapshot` | `rscss` | `regional` | Direct + tags |
+| `redshift_endpoint_access` | `rsepa` | `regional` | Direct |
+| `redshift_event_subscription` | `rsesb` | `regional` | Direct + tags |
+| `redshift_hsm_client_certificate` | `rshcc` | `regional` | Direct + tags |
+| `redshift_hsm_configuration` | `rshcf` | `regional` | Direct + tags |
+| `redshift_idc_application` | `rsidc` | `regional` | Direct |
+| `redshift_integration` | `rsint` | `regional` | Direct + tags |
+| `redshift_parameter_group` | `rspg` | `regional` | Direct + tags |
+| `redshift_scheduled_action` | `rssca` | `regional` | Direct |
+| `redshift_snapshot_copy_grant` | `rsscg` | `regional` | Direct + tags |
+| `redshift_snapshot_schedule` | `rsssh` | `regional` | Tags |
+| `redshift_subnet_group` | `rssng` | `regional` | Direct + tags |
+| `redshift_usage_limit` | `rsusg` | `regional` | Direct + tags |
+| `redshiftdata_statement` | `rsdst` | `regional` | Direct |
+| `redshiftserverless_endpoint_access` | `rssea` | `regional` | Direct |
+| `redshiftserverless_namespace` | `rssns` | `regional` | Direct + tags |
+| `redshiftserverless_snapshot` | `rsssn` | `regional` | Direct |
+| `redshiftserverless_workgroup` | `rsswg` | `regional` | Direct + tags |
+| `role` | `role` | `regional` | Legacy alias |
+| `role_policy` | `rlpl` | `regional` | Legacy alias |
+| `route53_record` | `r53r` | `regional` | Direct |
+| `route53_zone` | `rt53` | `regional` | Direct + tags |
+| `route_table` | `rttb` | `regional` | Tags |
+| `s3` | `s3b` | `regional` | Legacy alias |
+| `s3_access_point` | `s3ap` | `regional` | Direct + tags |
+| `s3_bucket` | `s3bk` | `regional` | Tags |
+| `s3_dir` | `s3dr` | `regional` | Legacy alias |
+| `s3_object` | `s3ob` | `regional` | Direct + tags |
+| `s3_table` | `s3tb` | `regional` | Legacy alias |
+| `sagemaker` | `sgmk` | `regional` | Legacy alias |
+| `sagemaker_algorithm` | `sgalg` | `regional` | Direct + tags |
+| `sagemaker_app` | `sgapp` | `regional` | Direct + tags |
+| `sagemaker_app_image_config` | `sgimc` | `regional` | Direct + tags |
+| `sagemaker_code_repository` | `sgcdr` | `regional` | Direct + tags |
+| `sagemaker_data_quality_job_definition` | `sgdqj` | `regional` | Direct + tags |
+| `sagemaker_device` | `sgdev` | `regional` | Direct |
+| `sagemaker_device_fleet` | `sgdfl` | `regional` | Direct + tags |
+| `sagemaker_domain` | `sgdmn` | `regional` | Direct + tags |
+| `sagemaker_endpoint` | `sgend` | `regional` | Direct + tags |
+| `sagemaker_endpoint_configuration` | `sgecf` | `regional` | Direct + tags |
+| `sagemaker_feature_group` | `sgfgr` | `regional` | Direct + tags |
+| `sagemaker_flow_definition` | `sgfld` | `regional` | Direct + tags |
+| `sagemaker_hub` | `sghub` | `regional` | Direct + tags |
+| `sagemaker_hub_content_reference` | `sghcr` | `regional` | Direct + tags |
+| `sagemaker_human_task_ui` | `sghtu` | `regional` | Direct + tags |
+| `sagemaker_hyper_parameter_tuning_job` | `sghtj` | `regional` | Direct + tags |
+| `sagemaker_image` | `sgimg` | `regional` | Direct + tags |
+| `sagemaker_labeling_job` | `sglbj` | `regional` | Direct + tags |
+| `sagemaker_mlflow_app` | `sgmfa` | `regional` | Direct + tags |
+| `sagemaker_mlflow_tracking_server` | `sgmft` | `regional` | Direct + tags |
+| `sagemaker_model` | `sgmdl` | `regional` | Direct + tags |
+| `sagemaker_model_card` | `sgmcd` | `regional` | Direct + tags |
+| `sagemaker_model_card_export_job` | `sgmce` | `regional` | Direct |
+| `sagemaker_model_package_group` | `sgmpg` | `regional` | Direct + tags |
+| `sagemaker_monitoring_schedule` | `sgmon` | `regional` | Direct + tags |
+| `sagemaker_notebook_instance` | `sgnbi` | `regional` | Direct + tags |
+| `sagemaker_notebook_instance_lifecycle_configuration` | `sgnlc` | `regional` | Direct + tags |
+| `sagemaker_pipeline` | `sgppl` | `regional` | Direct + tags |
+| `sagemaker_project` | `sgprj` | `regional` | Direct + tags |
+| `sagemaker_space` | `sgspc` | `regional` | Direct + tags |
+| `sagemaker_studio_lifecycle_config` | `sgslc` | `regional` | Direct + tags |
+| `sagemaker_training_job` | `sgtrn` | `regional` | Direct + tags |
+| `sagemaker_user_profile` | `sgusr` | `regional` | Direct + tags |
+| `sagemaker_workforce` | `sgwkf` | `regional` | Direct |
+| `sagemaker_workteam` | `sgwkt` | `regional` | Direct + tags |
+| `sec_group` | `scgp` | `regional` | Legacy alias |
+| `secretsmanager_secret` | `smse` | `regional` | Direct + tags |
+| `sfn` | `stfn` | `regional` | Legacy alias |
+| `snow_notification_integration` | `snti` | `regional` | Legacy alias |
+| `sns` | `sns` | `regional` | Legacy alias |
+| `sqs` | `sqs` | `regional` | Legacy alias |
+| `ssm_parameter` | `ssmp` | `regional` | Direct + tags |
+| `step_function` | `stfn` | `regional` | Legacy alias |
+| `subnet` | `subn` | `regional` | Tags |
+| `target_group` | `tgpt` | `regional` | Legacy alias |
+| `vpc` | `vpcn` | `regional` | Tags |
+| `wafv2_ip_set` | `wfis` | `regional` | Direct + tags |
+| `wafv2_web_acl` | `wfac` | `regional` | Direct + tags |
+| `wafv2_web_acl_rule` | `wfar` | `regional` | Direct |
+
+### Canonical Terraform Aliases
+
+These canonical Terraform keys resolve to established legacy acronyms. The legacy keys remain valid and unchanged.
+
+| Canonical key | Legacy key | Acronym |
 | --- | --- | --- |
-| `acm_cert` | `acmc` | `regional` |
-| `alb` | `albl` | `regional` |
-| `api_gateway_model` | `agmd` | `regional` |
-| `api_gateway_rest_api` | `agra` | `regional` |
-| `api_gateway_v2` | `agv2` | `regional` |
-| `appsync` | `apsy` | `regional` |
-| `athena` | `athn` | `regional` |
-| `aurora_cluster` | `arcl` | `regional` |
-| `autoscaling_group` | `asgr` | `regional` |
-| `cloudformation_stack` | `cfst` | `regional` |
-| `cloudfront` | `clfr` | `global` |
-| `cloudtrail` | `ctra` | `regional` |
-| `cloudwatch_alarm` | `cwal` | `regional` |
-| `cloudwatch_log_group` | `cwlg` | `regional` |
-| `codebuild` | `cdbd` | `regional` |
-| `codedeploy` | `cddp` | `regional` |
-| `codepipeline` | `cdpl` | `regional` |
-| `config_rule` | `cfrl` | `regional` |
-| `dynamodb` | `dydb` | `regional` |
-| `dynamodb_table` | `dybt` | `regional` |
-| `ebs` | `ebs` | `regional` |
-| `ec2_instance` | `ec2i` | `regional` |
-| `ecr` | `ecr` | `regional` |
-| `ecs` | `ecs` | `regional` |
-| `ecs_cluster` | `ecsc` | `regional` |
-| `ecs_service` | `ecss` | `regional` |
-| `ecs_task` | `ecst` | `regional` |
-| `efs` | `efs` | `regional` |
-| `eks` | `eks` | `regional` |
-| `eks_cluster` | `eksc` | `regional` |
-| `eks_node_group` | `ekng` | `regional` |
-| `elastic_ip` | `elip` | `regional` |
-| `elasticache` | `elch` | `regional` |
-| `elasticsearch` | `elsr` | `regional` |
-| `elb` | `elbl` | `regional` |
-| `eventbridge_bus` | `evbb` | `regional` |
-| `eventbridge_rule` | `evbr` | `regional` |
-| `glue` | `glue` | `regional` |
-| `guardduty` | `gdty` | `regional` |
-| `iam_group` | `iamg` | `global` |
-| `iam_policy` | `iamp` | `global` |
-| `iam_role` | `role` | `global` |
-| `iam_user` | `iamu` | `global` |
-| `igw` | `igtw` | `regional` |
-| `kms_key` | `kmsk` | `regional` |
-| `lambda` | `lmbd` | `regional` |
-| `launch_template` | `lcht` | `regional` |
-| `log_group` | `logg` | `regional` |
-| `msk_cluster` | `mskc` | `regional` |
-| `nacl` | `nacl` | `regional` |
-| `nat_gw` | `ngtw` | `regional` |
-| `nlb` | `nlbl` | `regional` |
-| `opensearch` | `opsr` | `regional` |
-| `rds` | `rds` | `regional` |
-| `rds_cluster` | `rdsc` | `regional` |
-| `redshift` | `rdsh` | `regional` |
-| `role` | `role` | `global` |
-| `role_policy` | `rlpl` | `global` |
-| `route53_record` | `r53r` | `global` |
-| `route53_zone` | `rt53` | `global` |
-| `route_table` | `rttb` | `regional` |
-| `s3` | `s3b` | `regional` |
-| `s3_access_point` | `s3ap` | `regional` |
-| `s3_bucket` | `s3bk` | `regional` |
-| `s3_dir` | `s3dr` | `regional` |
-| `s3_object` | `s3ob` | `regional` |
-| `s3_table` | `s3tb` | `regional` |
-| `sagemaker` | `sgmk` | `regional` |
-| `sec_group` | `scgp` | `regional` |
-| `secretsmanager_secret` | `smse` | `regional` |
-| `sfn` | `stfn` | `regional` |
-| `snow_notification_integration` | `snti` | `regional` |
-| `sns` | `sns` | `regional` |
-| `sqs` | `sqs` | `regional` |
-| `ssm_parameter` | `ssmp` | `regional` |
-| `step_function` | `stfn` | `regional` |
-| `subnet` | `subn` | `regional` |
-| `target_group` | `tgpt` | `regional` |
-| `vpc` | `vpcn` | `regional` |
-| `wafv2_ip_set` | `wfis` | `regional` |
-| `wafv2_web_acl` | `wfac` | `regional` |
-| `wafv2_web_acl_rule` | `wfar` | `regional` |
+| `aws_acm_certificate` | `acm_cert` | `acmc` |
+| `aws_apigatewayv2_api` | `api_gateway_v2` | `agv2` |
+| `aws_appsync_graphql_api` | `appsync` | `apsy` |
+| `aws_cloudfront_distribution` | `cloudfront` | `clfr` |
+| `aws_cloudwatch_event_bus` | `eventbridge_bus` | `evbb` |
+| `aws_cloudwatch_event_rule` | `eventbridge_rule` | `evbr` |
+| `aws_cloudwatch_metric_alarm` | `cloudwatch_alarm` | `cwal` |
+| `aws_codebuild_project` | `codebuild` | `cdbd` |
+| `aws_codedeploy_app` | `codedeploy` | `cddp` |
+| `aws_config_config_rule` | `config_rule` | `cfrl` |
+| `aws_ebs_volume` | `ebs` | `ebs` |
+| `aws_ecr_repository` | `ecr` | `ecr` |
+| `aws_ecs_task_definition` | `ecs_task` | `ecst` |
+| `aws_efs_file_system` | `efs` | `efs` |
+| `aws_eip` | `elastic_ip` | `elip` |
+| `aws_elasticache_cluster` | `elasticache` | `elch` |
+| `aws_elasticsearch_domain` | `elasticsearch` | `elsr` |
+| `aws_iam_role_policy` | `role_policy` | `rlpl` |
+| `aws_instance` | `ec2_instance` | `ec2i` |
+| `aws_internet_gateway` | `igw` | `igtw` |
+| `aws_lambda_function` | `lambda` | `lmbd` |
+| `aws_lb_target_group` | `target_group` | `tgpt` |
+| `aws_nat_gateway` | `nat_gw` | `ngtw` |
+| `aws_network_acl` | `nacl` | `nacl` |
+| `aws_opensearch_domain` | `opensearch` | `opsr` |
+| `aws_s3_directory_bucket` | `s3_dir` | `s3dr` |
+| `aws_s3tables_table` | `s3_table` | `s3tb` |
+| `aws_security_group` | `sec_group` | `scgp` |
+| `aws_sfn_state_machine` | `sfn` | `stfn` |
+| `aws_sns_topic` | `sns` | `sns` |
+| `aws_sqs_queue` | `sqs` | `sqs` |
+
+### Excluded Non-Nameable Resources
+
+The following Terraform resources are covered by the audit but intentionally do not receive acronyms. They configure, attach, authorize, register, or version another resource and expose neither an independent name nor standard AWS tags.
+
+| Terraform resource | Reason |
+| --- | --- |
+| `aws_bedrock_foundation_model_agreement` | service configuration |
+| `aws_bedrock_guardrail_version` | generated version |
+| `aws_bedrock_model_invocation_logging_configuration` | service configuration |
+| `aws_bedrock_use_case_for_model_access` | service configuration |
+| `aws_bedrockagent_agent_knowledge_base_association` | association |
+| `aws_bedrockagentcore_resource_policy` | resource policy |
+| `aws_bedrockagentcore_token_vault_cmk` | service configuration |
+| `aws_datazone_environment_blueprint_configuration` | service configuration |
+| `aws_emr_block_public_access_configuration` | service configuration |
+| `aws_emr_managed_scaling_policy` | attached policy |
+| `aws_emr_studio_session_mapping` | association |
+| `aws_glue_catalog_table_optimizer` | service configuration |
+| `aws_glue_data_catalog_encryption_settings` | service configuration |
+| `aws_glue_partition` | generated identifier |
+| `aws_glue_resource_policy` | resource policy |
+| `aws_kinesis_account_settings` | service configuration |
+| `aws_kinesis_resource_policy` | resource policy |
+| `aws_lakeformation_data_lake_settings` | service configuration |
+| `aws_lakeformation_identity_center_configuration` | service configuration |
+| `aws_lakeformation_opt_in` | association |
+| `aws_lakeformation_permissions` | permission grant |
+| `aws_lakeformation_resource` | resource registration |
+| `aws_lakeformation_resource_lf_tag` | association |
+| `aws_lakeformation_resource_lf_tags` | association |
+| `aws_quicksight_account_settings` | service configuration |
+| `aws_quicksight_folder_membership` | association |
+| `aws_quicksight_group_membership` | association |
+| `aws_quicksight_ip_restriction` | service configuration |
+| `aws_quicksight_key_registration` | resource registration |
+| `aws_quicksight_role_custom_permission` | association |
+| `aws_quicksight_role_membership` | association |
+| `aws_quicksight_user_custom_permission` | association |
+| `aws_redshift_cluster_iam_roles` | association |
+| `aws_redshift_data_share_authorization` | authorization |
+| `aws_redshift_data_share_consumer_association` | association |
+| `aws_redshift_endpoint_authorization` | authorization |
+| `aws_redshift_logging` | service configuration |
+| `aws_redshift_namespace_registration` | resource registration |
+| `aws_redshift_partner` | association |
+| `aws_redshift_resource_policy` | resource policy |
+| `aws_redshift_snapshot_copy` | service configuration |
+| `aws_redshift_snapshot_schedule_association` | association |
+| `aws_redshiftserverless_custom_domain_association` | association |
+| `aws_redshiftserverless_resource_policy` | resource policy |
+| `aws_redshiftserverless_usage_limit` | service configuration |
+| `aws_sagemaker_image_version` | generated version |
+| `aws_sagemaker_model_package_group_policy` | resource policy |
+| `aws_sagemaker_servicecatalog_portfolio_status` | service configuration |
+
+### AWS Constraint Policy
+
+All 153 newly supported exact resources have minimum length, maximum length, and character-pattern validation. Service-family defaults are conservative subsets of the upstream AWS/provider rules. Resource-specific overrides enforce stricter limits where needed:
+
+- Athena databases and prepared statements use `straight` style because their identifiers do not accept hyphens.
+- Bedrock AgentCore identifiers with letter/alphanumeric/underscore rules use `straight` style and 40-48 character limits.
+- DataZone form types use Smithy-compatible `straight` identifiers with a 36-character limit.
+- Redshift endpoint names are limited to 30 lowercase characters; cluster-related identifiers reject trailing or consecutive hyphens.
+- SageMaker projects and hyperparameter tuning jobs are limited to 32 characters; other SageMaker names use a conservative 63-character limit.
 
 ## Azure CAF Acronyms and Constraints
 
@@ -581,7 +856,7 @@ Style behaviors:
 Words are extracted from each component using the pattern `[A-Za-z0-9]+`, so punctuation or separators become word boundaries. If no valid style matches, Sigil falls back to the first allowed style from `resource_style_overrides` for that resource, or `dashed` when no style override exists.
 
 Cloud-specific style overrides are applied automatically:
-- `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
+- `aws`: S3 uses compatible dashed/straight styles; Athena, Bedrock AgentCore, and DataZone resources with identifier-only character sets automatically use `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
 - `gcp`: built-in constrained resources include style restrictions for compatibility with Google Cloud naming rules, including bucket, Compute Engine, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
 

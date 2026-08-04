@@ -3,7 +3,7 @@
 Generates a resource name and its components using provider configuration, optional overrides, and style preferences.
 
 Behavior is cloud-aware:
-- `cloud = "aws"` uses built-in AWS acronyms and constraints.
+- `cloud = "aws"` uses audited AWS acronyms and enforced constraints for nameable resources in data engineering and data science families such as Athena, Glue, EMR, Kinesis, Lake Formation, Redshift, SageMaker, Bedrock, Bedrock Agents, and Bedrock AgentCore. Configuration and association resources without their own name or tags are intentionally excluded.
 - `cloud = "azure"` uses Azure CAF resource definitions (acronyms, style rules, and regex constraints).
 - `cloud = "gcp"` uses built-in GCP defaults with strict constraints for supported storage, Compute Engine, Pub/Sub, service account, BigQuery dataset, and Cloud Run service resources.
 - CAF resource catalog JSON: https://github.com/aztfmod/terraform-provider-azurecaf/blob/main/resourceDefinition.json
@@ -25,7 +25,7 @@ terraform {
 
     sigil = {
       source  = "jesinity/sigil"
-      version = "~> 1.3.0"
+      version = "~> 1.4.0"
     }
   }
 }
@@ -214,7 +214,7 @@ output "azure_storage_account_style" {
 The data source selects the first valid style from `style_priority` (request-specific) or the provider `style_priority` when none is supplied. If `resource_style_overrides` defines an allowed style list for the current `what`, only those styles are considered. If no style matches, Sigil falls back to the first allowed style for that resource, or `dashed` when no style override exists.
 
 Cloud-specific style overrides are applied automatically:
-- `aws`: `s3` and `s3_bucket` are restricted to `dashed` and `straight`.
+- `aws`: S3 uses compatible dashed/straight styles; Athena, Bedrock AgentCore, and DataZone resources with identifier-only character sets automatically use `straight`.
 - `azure`: each CAF resource inherits style limits from CAF dash/lowercase metadata.
 - `gcp`: built-in constrained resources include style restrictions for compatibility with Google Cloud naming rules, including bucket, Compute Engine, service account, BigQuery dataset, Pub/Sub, and Cloud Run resources.
 

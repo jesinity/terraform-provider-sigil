@@ -245,6 +245,217 @@ func TestBuildNameAzureCdnFrontdoorRuleFallsBackFromDashedToPascal(t *testing.T)
 	}
 }
 
+func TestDefaultCloudDefaultsAWSDataScienceAndEngineering(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAWS)
+	if err != nil {
+		t.Fatalf("unexpected error loading AWS defaults: %v", err)
+	}
+
+	expected := map[string]string{
+		"athena_workgroup":                 "athwg",
+		"glue_catalog_database":            "glcdb",
+		"glue_job":                         "gljob",
+		"sagemaker_domain":                 "sgdmn",
+		"sagemaker_feature_group":          "sgfgr",
+		"bedrock_guardrail":                "brgr",
+		"bedrockagent_agent":               "braga",
+		"bedrockagent_knowledge_base":      "brakb",
+		"bedrockagentcore_agent_runtime":   "bracr",
+		"datazone_domain":                  "dzdmn",
+		"emrserverless_application":        "emrsa",
+		"kinesis_firehose_delivery_stream": "knsfh",
+		"lakeformation_lf_tag":             "lftag",
+		"quicksight_dashboard":             "qsdsh",
+		"redshiftserverless_workgroup":     "rsswg",
+	}
+
+	for resource, acronym := range expected {
+		if got := defaults.ResourceAcronyms[resource]; got != acronym {
+			t.Fatalf("expected AWS resource %q acronym %q, got %q", resource, acronym, got)
+		}
+		if !defaults.RegionalResources[resource] {
+			t.Fatalf("expected AWS resource %q to be regional", resource)
+		}
+	}
+}
+
+func TestDefaultAWSLegacyResourceAcronymsRemainStable(t *testing.T) {
+	expected := map[string]string{
+		"role": "role", "role_policy": "rlpl", "iam_role": "role", "iam_policy": "iamp",
+		"iam_user": "iamu", "iam_group": "iamg", "s3": "s3b", "s3_bucket": "s3bk",
+		"s3_object": "s3ob", "s3_access_point": "s3ap", "s3_table": "s3tb", "s3_dir": "s3dr",
+		"sns": "sns", "sqs": "sqs", "ecs_cluster": "ecsc", "ecs_service": "ecss",
+		"ecs_task": "ecst", "eks": "eks", "eks_cluster": "eksc", "eks_node_group": "ekng",
+		"msk_cluster": "mskc", "vpc": "vpcn", "subnet": "subn", "igw": "igtw",
+		"nat_gw": "ngtw", "sec_group": "scgp", "nacl": "nacl", "route_table": "rttb",
+		"elastic_ip": "elip", "wafv2_web_acl": "wfac", "wafv2_web_acl_rule": "wfar", "wafv2_ip_set": "wfis",
+		"lambda": "lmbd", "api_gateway_rest_api": "agra", "api_gateway_model": "agmd", "api_gateway_v2": "agv2",
+		"log_group": "logg", "cloudwatch_log_group": "cwlg", "cloudwatch_alarm": "cwal", "eventbridge_bus": "evbb",
+		"eventbridge_rule": "evbr", "step_function": "stfn", "sfn": "stfn", "dynamodb": "dydb",
+		"dynamodb_table": "dybt", "rds": "rds", "rds_cluster": "rdsc", "aurora_cluster": "arcl",
+		"redshift": "rdsh", "elasticache": "elch", "opensearch": "opsr", "elasticsearch": "elsr",
+		"ecr": "ecr", "ecs": "ecs", "ec2_instance": "ec2i", "launch_template": "lcht",
+		"autoscaling_group": "asgr", "alb": "albl", "nlb": "nlbl", "elb": "elbl",
+		"target_group": "tgpt", "cloudfront": "clfr", "route53_zone": "rt53", "route53_record": "r53r",
+		"acm_cert": "acmc", "kms_key": "kmsk", "secretsmanager_secret": "smse", "ssm_parameter": "ssmp",
+		"cloudtrail": "ctra", "guardduty": "gdty", "config_rule": "cfrl", "efs": "efs",
+		"ebs": "ebs", "athena": "athn", "glue": "glue", "sagemaker": "sgmk",
+		"codebuild": "cdbd", "codepipeline": "cdpl", "codedeploy": "cddp", "cloudformation_stack": "cfst",
+		"appsync": "apsy", "snow_notification_integration": "snti",
+	}
+
+	actual := DefaultResourceAcronyms()
+	if len(expected) != 82 {
+		t.Fatalf("legacy test fixture must contain 82 entries, got %d", len(expected))
+	}
+	for resource, acronym := range expected {
+		if got := actual[resource]; got != acronym {
+			t.Fatalf("legacy AWS resource %q changed from %q to %q", resource, acronym, got)
+		}
+	}
+}
+
+func TestDefaultAWSOpaqueResourcesAreNotNameable(t *testing.T) {
+	acronyms := DefaultResourceAcronyms()
+	opaque := DefaultAWSOpaqueResources()
+	if len(opaque) != 48 {
+		t.Fatalf("expected 48 explicitly classified opaque AWS resources, got %d", len(opaque))
+	}
+	for resource := range opaque {
+		if acronym, exists := acronyms[resource]; exists {
+			t.Fatalf("opaque AWS resource %q must not expose acronym %q", resource, acronym)
+		}
+	}
+}
+
+func TestDefaultAWSCanonicalTerraformAliasesResolve(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAWS)
+	if err != nil {
+		t.Fatalf("unexpected error loading AWS defaults: %v", err)
+	}
+
+	for canonical, legacy := range defaultAWSResourceAliases {
+		expected := defaults.ResourceAcronyms[legacy]
+		result, err := BuildName(Config{
+			Cloud:                            CloudAWS,
+			OrgPrefix:                        "acme",
+			Project:                          "core",
+			Env:                              "dev",
+			Region:                           "us-east-1",
+			RegionMap:                        defaults.RegionMap,
+			IgnoreRegionForRegionalResources: false,
+			ResourceAcronyms:                 defaults.ResourceAcronyms,
+			ResourceStyleOverrides:           defaults.ResourceStyleOverrides,
+			ResourceConstraints:              defaults.ResourceConstraints,
+			RegionalResources:                defaults.RegionalResources,
+		}, BuildInput{Resource: "aws_" + canonical})
+		if err != nil {
+			t.Fatalf("canonical AWS resource %q failed through legacy alias %q: %v", canonical, legacy, err)
+		}
+		if result.ResourceAcronym != expected {
+			t.Fatalf("canonical AWS resource %q resolved to %q, expected legacy acronym %q", canonical, result.ResourceAcronym, expected)
+		}
+	}
+}
+
+func TestDefaultAWSDataResourcesBuildWithinConstraints(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAWS)
+	if err != nil {
+		t.Fatalf("unexpected error loading AWS defaults: %v", err)
+	}
+
+	checked := 0
+	for resource := range defaults.ResourceAcronyms {
+		if _, isDataResource := defaultAWSDataResourceConstraint(resource); !isDataResource {
+			continue
+		}
+		checked++
+		if _, exists := defaults.ResourceConstraints[resource]; !exists {
+			t.Fatalf("AWS data resource %q has no enforced naming constraint", resource)
+		}
+		if _, err := BuildName(Config{
+			Cloud:                            CloudAWS,
+			OrgPrefix:                        "acme",
+			Project:                          "ml",
+			Env:                              "dev",
+			Region:                           "us-east-1",
+			RegionMap:                        defaults.RegionMap,
+			IgnoreRegionForRegionalResources: false,
+			ResourceAcronyms:                 defaults.ResourceAcronyms,
+			ResourceStyleOverrides:           defaults.ResourceStyleOverrides,
+			ResourceConstraints:              defaults.ResourceConstraints,
+			RegionalResources:                defaults.RegionalResources,
+		}, BuildInput{Resource: "aws_" + resource}); err != nil {
+			t.Fatalf("AWS data resource %q generated an invalid default name: %v", resource, err)
+		}
+	}
+	if checked != 153 {
+		t.Fatalf("expected 153 constrained AWS data resources, checked %d", checked)
+	}
+}
+
+func TestBuildNameAWSStripsTerraformResourcePrefix(t *testing.T) {
+	defaults, err := DefaultCloudDefaults(CloudAWS)
+	if err != nil {
+		t.Fatalf("unexpected error loading AWS defaults: %v", err)
+	}
+
+	result, err := BuildName(Config{
+		Cloud:                            CloudAWS,
+		OrgPrefix:                        "acme",
+		Project:                          "ml",
+		Env:                              "prod",
+		Region:                           "us-east-1",
+		RegionMap:                        defaults.RegionMap,
+		IgnoreRegionForRegionalResources: false,
+		ResourceAcronyms:                 defaults.ResourceAcronyms,
+		ResourceStyleOverrides:           defaults.ResourceStyleOverrides,
+		ResourceConstraints:              defaults.ResourceConstraints,
+		RegionalResources:                defaults.RegionalResources,
+	}, BuildInput{
+		Resource:  "aws_bedrockagent_knowledge_base",
+		Qualifier: "retrieval",
+	})
+	if err != nil {
+		t.Fatalf("unexpected build error: %v", err)
+	}
+
+	if result.ResourceAcronym != "brakb" {
+		t.Fatalf("expected resource acronym %q, got %q", "brakb", result.ResourceAcronym)
+	}
+	if result.Name != "acme-ml-prod-use1-brakb-retrieval" {
+		t.Fatalf("expected generated name %q, got %q", "acme-ml-prod-use1-brakb-retrieval", result.Name)
+	}
+}
+
+func TestDefaultAWSPrimaryResourceAcronymsAreUnique(t *testing.T) {
+	acronyms := DefaultResourceAcronyms()
+	owners := map[string]string{}
+
+	for resource, acronym := range acronyms {
+		if previous, ok := owners[acronym]; ok {
+			if !isAWSAllowedAcronymAlias(acronym, previous, resource) {
+				t.Fatalf("duplicate AWS acronym %q for %q and %q", acronym, previous, resource)
+			}
+		}
+		owners[acronym] = resource
+	}
+}
+
+func isAWSAllowedAcronymAlias(acronym, a, b string) bool {
+	if a > b {
+		a, b = b, a
+	}
+	switch acronym {
+	case "role":
+		return a == "iam_role" && b == "role"
+	case "stfn":
+		return a == "sfn" && b == "step_function"
+	default:
+		return false
+	}
+}
+
 func TestDefaultCloudDefaultsGCP(t *testing.T) {
 	defaults, err := DefaultCloudDefaults(CloudGCP)
 	if err != nil {
