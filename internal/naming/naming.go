@@ -264,6 +264,15 @@ func resourceLookupCandidates(cloud, resourceKey string) []string {
 	}
 
 	keys := []string{resourceKey}
+	if NormalizeCloud(cloud) == CloudAWS {
+		canonicalKey := strings.TrimPrefix(resourceKey, "aws_")
+		if canonicalKey != resourceKey {
+			keys = append(keys, canonicalKey)
+		}
+		if alias := defaultAWSResourceAliases[canonicalKey]; alias != "" {
+			keys = append(keys, alias)
+		}
+	}
 	if NormalizeCloud(cloud) == CloudGCP && strings.HasPrefix(resourceKey, "google_") {
 		keys = append(keys, strings.TrimPrefix(resourceKey, "google_"))
 	}

@@ -20,7 +20,8 @@ archives:
   - id: release-archives
     ids:
       - terraform-provider-sigil
-    format: zip
+    formats:
+      - zip
     name_template: "terraform-provider-sigil_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
