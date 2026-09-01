@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.5.0 - 2026-08-28
+
+### Added
+
+- Optional `platform = "databricks"` configuration with composable Databricks defaults for AWS, Azure, and GCP.
+- Audited, source-controlled Databricks naming manifest and canonical Terraform resource lookup with platform-only aliases.
+- Databricks provisioning coverage, complete v1.129.0 catalog classification, and an upstream drift comparison tool.
+
+### Compatibility
+
+- This is an additive minor release. Existing cloud-only configurations preserve their prior behavior when `platform` is omitted.
+
 ## v1.4.0 - 2026-08-04
 
 ### Added

@@ -151,6 +151,7 @@ func (d *MarkDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 
 	result, err := naming.BuildName(naming.Config{
 		Cloud:                            d.providerData.Cloud,
+		Platform:                         d.providerData.Platform,
 		OrgPrefix:                        d.providerData.OrgPrefix,
 		Project:                          d.providerData.Project,
 		Env:                              d.providerData.Env,

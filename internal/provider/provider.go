@@ -20,6 +20,7 @@ type SigilProvider struct {
 
 type ProviderData struct {
 	Cloud                            string
+	Platform                         string
 	OrgPrefix                        string
 	Project                          string
 	Env                              string
@@ -39,6 +40,7 @@ type providerModel struct {
 	Config                           types.Object `tfsdk:"config"`
 	Overrides                        types.Object `tfsdk:"overrides"`
 	Cloud                            types.String `tfsdk:"cloud"`
+	Platform                         types.String `tfsdk:"platform"`
 	OrgPrefix                        types.String `tfsdk:"org_prefix"`
 	Project                          types.String `tfsdk:"project"`
 	Env                              types.String `tfsdk:"env"`
@@ -55,6 +57,7 @@ type providerModel struct {
 
 type providerConfigModel struct {
 	Cloud                            types.String `tfsdk:"cloud"`
+	Platform                         types.String `tfsdk:"platform"`
 	OrgPrefix                        types.String `tfsdk:"org_prefix"`
 	Project                          types.String `tfsdk:"project"`
 	Env                              types.String `tfsdk:"env"`
@@ -120,8 +123,13 @@ func (p *SigilProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		resp.Diagnostics.AddError("Invalid cloud", fmt.Sprintf("Unsupported cloud %q. Valid values are %q, %q, and %q.", cloud, naming.CloudAWS, naming.CloudAzure, naming.CloudGCP))
 		return
 	}
+	platform := resolvePlatform(config.Platform, baseConfig, hasBaseConfig, overrideConfig, hasOverrideConfig)
+	if !naming.IsSupportedPlatform(platform) {
+		resp.Diagnostics.AddError("Invalid platform", fmt.Sprintf("Unsupported platform %q. Valid values are an empty value and %q.", platform, naming.PlatformDatabricks))
+		return
+	}
 
-	cloudDefaults, err := naming.DefaultCloudDefaults(cloud)
+	cloudDefaults, err := naming.DefaultDefaults(cloud, platform)
 	if err != nil {
 		resp.Diagnostics.AddError("Cloud defaults error", err.Error())
 		return
@@ -129,6 +137,7 @@ func (p *SigilProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	data := &ProviderData{
 		Cloud:                            cloud,
+		Platform:                         platform,
 		OrgPrefix:                        "",
 		Project:                          "",
 		Env:                              "",
@@ -192,6 +201,7 @@ func providerConfigSchemaAttributes() map[string]schema.Attribute {
 		"cloud": schema.StringAttribute{
 			Optional: true,
 		},
+		"platform": schema.StringAttribute{Optional: true},
 		"org_prefix": schema.StringAttribute{
 			Optional: true,
 		},
@@ -240,6 +250,7 @@ func providerConfigSchemaAttributes() map[string]schema.Attribute {
 func providerConfigFromModel(config providerModel) providerConfigModel {
 	return providerConfigModel{
 		Cloud:                            config.Cloud,
+		Platform:                         config.Platform,
 		OrgPrefix:                        config.OrgPrefix,
 		Project:                          config.Project,
 		Env:                              config.Env,
@@ -281,9 +292,26 @@ func resolveCloud(topLevelCloud types.String, baseConfig providerConfigModel, ha
 	return cloud
 }
 
+func resolvePlatform(topLevelPlatform types.String, baseConfig providerConfigModel, hasBaseConfig bool, overrideConfig providerConfigModel, hasOverrideConfig bool) string {
+	platform := ""
+	if hasBaseConfig && !baseConfig.Platform.IsNull() && !baseConfig.Platform.IsUnknown() {
+		platform = naming.NormalizePlatform(baseConfig.Platform.ValueString())
+	}
+	if !topLevelPlatform.IsNull() && !topLevelPlatform.IsUnknown() {
+		platform = naming.NormalizePlatform(topLevelPlatform.ValueString())
+	}
+	if hasOverrideConfig && !overrideConfig.Platform.IsNull() && !overrideConfig.Platform.IsUnknown() {
+		platform = naming.NormalizePlatform(overrideConfig.Platform.ValueString())
+	}
+	return platform
+}
+
 func applyProviderConfig(ctx context.Context, resp *provider.ConfigureResponse, data *ProviderData, config providerConfigModel) {
 	if !config.Cloud.IsNull() && !config.Cloud.IsUnknown() {
 		data.Cloud = naming.NormalizeCloud(config.Cloud.ValueString())
+	}
+	if !config.Platform.IsNull() && !config.Platform.IsUnknown() {
+		data.Platform = naming.NormalizePlatform(config.Platform.ValueString())
 	}
 	if !config.OrgPrefix.IsNull() && !config.OrgPrefix.IsUnknown() {
 		data.OrgPrefix = config.OrgPrefix.ValueString()

@@ -13,5 +13,6 @@ func (awsCloudProfile) Defaults() (CloudDefaults, error) {
 		ResourceStyleOverrides: DefaultResourceStyleOverrides(),
 		ResourceConstraints:    DefaultResourceConstraints(),
 		RegionalResources:      DefaultRegionalResources(),
+		ResourceClouds:         map[string][]string{},
 	}, nil
 }

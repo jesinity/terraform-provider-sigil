@@ -31,3 +31,20 @@ func TestResolveCloudPrecedence(t *testing.T) {
 		t.Fatalf("expected explicit top-level cloud (%q), got %q", naming.CloudGCP, resolved)
 	}
 }
+
+func TestResolvePlatformPrecedence(t *testing.T) {
+	base := providerConfigModel{Platform: types.StringValue(naming.PlatformDatabricks)}
+	if got := resolvePlatform(types.StringNull(), base, true, providerConfigModel{}, false); got != naming.PlatformDatabricks {
+		t.Fatalf("expected config platform, got %q", got)
+	}
+	if got := resolvePlatform(types.StringValue(naming.PlatformDatabricks), providerConfigModel{}, false, providerConfigModel{}, false); got != naming.PlatformDatabricks {
+		t.Fatalf("expected top-level platform, got %q", got)
+	}
+	override := providerConfigModel{Platform: types.StringValue(naming.PlatformDatabricks)}
+	if got := resolvePlatform(types.StringValue(""), base, true, override, true); got != naming.PlatformDatabricks {
+		t.Fatalf("expected overrides platform, got %q", got)
+	}
+	if got := resolvePlatform(types.StringNull(), providerConfigModel{}, false, providerConfigModel{}, false); got != "" {
+		t.Fatalf("expected empty platform default, got %q", got)
+	}
+}

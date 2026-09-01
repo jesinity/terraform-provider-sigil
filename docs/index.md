@@ -2,6 +2,8 @@
 
 Terraform provider for consistent resource naming across multiple clouds. `aws` is the default cloud profile, including built-in data engineering and data science coverage for Athena, Glue, EMR, Kinesis, Lake Formation, Redshift, SageMaker, Bedrock, Bedrock Agents, and Bedrock AgentCore. `azure` uses Azure CAF resource coverage, and `gcp` includes built-in resource coverage with strict constraints for supported resource families.
 
+Set `platform = "databricks"` to overlay audited Databricks definitions on any cloud profile. See [Databricks platform resources](databricks-resources.md) for its scoped first-milestone coverage.
+
 ## Provider Configuration
 
 ```hcl
