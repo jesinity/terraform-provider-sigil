@@ -34,6 +34,7 @@ type ProviderData struct {
 	ResourceConstraints              map[string]naming.ResourceConstraint
 	IgnoreRegionForRegionalResources bool
 	RegionalResources                map[string]bool
+	ResourceClouds                   map[string][]string
 }
 
 type providerModel struct {
@@ -151,6 +152,7 @@ func (p *SigilProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		ResourceConstraints:              cloudDefaults.ResourceConstraints,
 		IgnoreRegionForRegionalResources: true,
 		RegionalResources:                cloudDefaults.RegionalResources,
+		ResourceClouds:                   cloudDefaults.ResourceClouds,
 	}
 
 	if hasBaseConfig {

@@ -512,47 +512,34 @@ data "sigil_mark" "storage" {
 }
 
 func TestDatabricksPlatformConfigurationPrecedence(t *testing.T) {
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{{
-			Config: `
-provider "sigil" {
+	tests := map[string]string{
+		"config": `
   config = { cloud = "aws", platform = "databricks", org_prefix = "base", env = "dev" }
-}
-
-provider "sigil" {
-  alias      = "top_level"
+`,
+		"top_level": `
   cloud      = "azure"
   platform   = "databricks"
   org_prefix = "top"
   env        = "dev"
-}
-
-provider "sigil" {
-  alias = "override"
+`,
+		"overrides": `
   config = { cloud = "gcp", platform = "", org_prefix = "base", env = "dev" }
   overrides = { platform = "databricks", org_prefix = "override" }
-}
-
-data "sigil_mark" "from_config" { what = "cluster" }
-
-data "sigil_mark" "from_top_level" {
-  provider = sigil.top_level
-  what = "cluster"
-}
-
-data "sigil_mark" "from_overrides" {
-  provider = sigil.override
-  what = "cluster"
-}
 `,
-			Check: resource.ComposeTestCheckFunc(
-				resource.TestCheckResourceAttr("data.sigil_mark.from_config", "resource_acronym", "dbc"),
-				resource.TestCheckResourceAttr("data.sigil_mark.from_top_level", "resource_acronym", "dbc"),
-				resource.TestCheckResourceAttr("data.sigil_mark.from_overrides", "resource_acronym", "dbc"),
-			),
-		}},
-	})
+	}
+	for name, providerBody := range tests {
+		t.Run(name, func(t *testing.T) {
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{{
+					Config: testAccMarkDataSourceConfig(providerBody, `
+data "sigil_mark" "platform" { what = "cluster" }
+`),
+					Check: resource.TestCheckResourceAttr("data.sigil_mark.platform", "resource_acronym", "dbc"),
+				}},
+			})
+		})
+	}
 }
 
 func testAccMarkDataSourceConfig(providerBody, dataBody string) string {

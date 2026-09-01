@@ -8,6 +8,11 @@
 - Audited, source-controlled Databricks naming manifest and canonical Terraform resource lookup with platform-only aliases.
 - Databricks provisioning coverage, complete v1.129.0 catalog classification, and an upstream drift comparison tool.
 
+### Changed
+
+- Hardened manifest validation for unsupported styles and duplicate canonical resources.
+- Deep-copied constraint slices and completed category/scope classification for all 170 upstream resources.
+
 ### Compatibility
 
 - This is an additive minor release. Existing cloud-only configurations preserve their prior behavior when `platform` is omitted.

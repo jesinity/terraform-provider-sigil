@@ -81,7 +81,7 @@ func DefaultStylePriority() []string {
 
 func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	effective := cfg
-	if len(effective.RegionMap) == 0 || len(effective.ResourceAcronyms) == 0 || len(effective.ResourceStyleOverrides) == 0 || len(effective.ResourceConstraints) == 0 || len(effective.RegionalResources) == 0 || len(effective.ResourceClouds) == 0 {
+	if len(effective.RegionMap) == 0 || len(effective.ResourceAcronyms) == 0 || len(effective.ResourceStyleOverrides) == 0 || len(effective.ResourceConstraints) == 0 || len(effective.RegionalResources) == 0 || effective.ResourceClouds == nil {
 		defaults, err := composeCloudDefaults(effective.Cloud, effective.Platform)
 		if err != nil {
 			return BuildResult{}, err
@@ -101,7 +101,7 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 		if len(effective.RegionalResources) == 0 {
 			effective.RegionalResources = defaults.RegionalResources
 		}
-		if len(effective.ResourceClouds) == 0 {
+		if effective.ResourceClouds == nil {
 			effective.ResourceClouds = defaults.ResourceClouds
 		}
 	}

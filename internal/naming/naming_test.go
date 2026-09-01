@@ -3,6 +3,7 @@ package naming
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -70,6 +71,38 @@ func TestDatabricksManifestValidation(t *testing.T) {
 	invalid := []byte(`{"provider":"databricks/databricks","provider_version":"1.129.0","resources":[{"name":"databricks_one","acronym":"same","naming_attribute":"name","scope":"workspace","styles":["dashed"],"support_status":"supported","constraint_status":"audited","documentation_url":"https://example.test"},{"name":"databricks_two","acronym":"same","naming_attribute":"name","scope":"workspace","styles":["dashed"],"support_status":"supported","constraint_status":"audited","documentation_url":"https://example.test"}]}`)
 	if _, _, err := loadDatabricksPlatformDefaults(invalid); err == nil {
 		t.Fatal("expected duplicate acronym error")
+	}
+}
+
+func TestDatabricksManifestRejectsInvalidStylesAndAllDuplicateNames(t *testing.T) {
+	fixtures := map[string]string{
+		"unsupported style":       `{"provider":"databricks/databricks","provider_version":"1.129.0","resources":[{"name":"databricks_one","acronym":"one","naming_attribute":"name","scope":"workspace","styles":["unsupported"],"support_status":"supported","constraint_status":"audited","documentation_url":"https://example.test"}]}`,
+		"duplicate deferred name": `{"provider":"databricks/databricks","provider_version":"1.129.0","resources":[{"name":"databricks_one","support_status":"deferred","constraint_status":"not_applicable"},{"name":"databricks_one","support_status":"deferred","constraint_status":"not_applicable"}]}`,
+	}
+	for name, fixture := range fixtures {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := loadDatabricksPlatformDefaults([]byte(fixture)); err == nil {
+				t.Fatal("expected manifest validation error")
+			}
+		})
+	}
+}
+
+func TestCopyConstraintMapClonesSlices(t *testing.T) {
+	original := map[string]ResourceConstraint{"resource": {
+		ForbiddenPrefixes:   []string{"prefix"},
+		ForbiddenSuffixes:   []string{"suffix"},
+		ForbiddenSubstrings: []string{"substring"},
+		ForbiddenPatterns:   []*regexp.Regexp{regexp.MustCompile("forbidden")},
+	}}
+	cloned := copyConstraintMap(original)
+	cloned["resource"].ForbiddenPrefixes[0] = "changed"
+	cloned["resource"].ForbiddenSuffixes[0] = "changed"
+	cloned["resource"].ForbiddenSubstrings[0] = "changed"
+	cloned["resource"].ForbiddenPatterns[0] = regexp.MustCompile("changed")
+	constraint := original["resource"]
+	if constraint.ForbiddenPrefixes[0] != "prefix" || constraint.ForbiddenSuffixes[0] != "suffix" || constraint.ForbiddenSubstrings[0] != "substring" || constraint.ForbiddenPatterns[0].String() != "forbidden" {
+		t.Fatal("constraint slices leaked between copies")
 	}
 }
 
@@ -192,6 +225,7 @@ func TestDatabricksCatalogClassifiesV11290Resources(t *testing.T) {
 		Resources       []struct {
 			Name             string `json:"name"`
 			Category         string `json:"category"`
+			Scope            string `json:"scope"`
 			SupportStatus    string `json:"support_status"`
 			Reason           string `json:"reason"`
 			DocumentationURL string `json:"documentation_url"`
@@ -208,7 +242,7 @@ func TestDatabricksCatalogClassifiesV11290Resources(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, resource := range catalog.Resources {
-		if seen[resource.Name] || resource.Category == "" || resource.SupportStatus == "" || resource.Reason == "" || resource.DocumentationURL == "" {
+		if seen[resource.Name] || resource.Category == "" || resource.Category == "Deferred audit" || resource.Scope == "" || resource.SupportStatus == "" || resource.Reason == "" || resource.DocumentationURL == "" {
 			t.Fatalf("incomplete or duplicate catalog entry: %#v", resource)
 		}
 		seen[resource.Name] = true

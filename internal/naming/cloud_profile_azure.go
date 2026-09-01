@@ -187,6 +187,10 @@ func copyStringSliceMap(in map[string][]string) map[string][]string {
 func copyConstraintMap(in map[string]ResourceConstraint) map[string]ResourceConstraint {
 	out := make(map[string]ResourceConstraint, len(in))
 	for key, value := range in {
+		value.ForbiddenPrefixes = append([]string(nil), value.ForbiddenPrefixes...)
+		value.ForbiddenSuffixes = append([]string(nil), value.ForbiddenSuffixes...)
+		value.ForbiddenSubstrings = append([]string(nil), value.ForbiddenSubstrings...)
+		value.ForbiddenPatterns = append([]*regexp.Regexp(nil), value.ForbiddenPatterns...)
 		out[key] = value
 	}
 	return out

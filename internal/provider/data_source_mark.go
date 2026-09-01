@@ -165,6 +165,7 @@ func (d *MarkDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		ResourceConstraints:              d.providerData.ResourceConstraints,
 		IgnoreRegionForRegionalResources: d.providerData.IgnoreRegionForRegionalResources,
 		RegionalResources:                d.providerData.RegionalResources,
+		ResourceClouds:                   d.providerData.ResourceClouds,
 	}, naming.BuildInput{
 		Resource:      what,
 		Qualifier:     data.Qualifier.ValueString(),

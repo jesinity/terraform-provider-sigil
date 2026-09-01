@@ -73,15 +73,17 @@ func loadDatabricksPlatformDefaults(contents []byte) (CloudDefaults, map[string]
 	defaults := CloudDefaults{RegionMap: map[string]string{}, ResourceAcronyms: map[string]string{}, ResourceStyleOverrides: map[string][]string{}, ResourceConstraints: map[string]ResourceConstraint{}, RegionalResources: map[string]bool{}, ResourceClouds: map[string][]string{}}
 	aliases := map[string]string{}
 	acronyms := map[string]bool{}
+	canonicalNames := map[string]bool{}
 	for _, resource := range manifest.Resources {
 		name := strings.ToLower(strings.TrimSpace(resource.Name))
 		status := strings.TrimSpace(resource.SupportStatus)
 		if name == "" || (!strings.HasPrefix(name, "databricks_") && name != "azurerm_databricks_workspace") {
 			return CloudDefaults{}, nil, fmt.Errorf("Databricks resource name %q must use its canonical Terraform provider prefix", resource.Name)
 		}
-		if _, exists := defaults.ResourceAcronyms[name]; exists {
+		if canonicalNames[name] {
 			return CloudDefaults{}, nil, fmt.Errorf("duplicate Databricks canonical resource %q", name)
 		}
+		canonicalNames[name] = true
 		if status != "supported" && status != "not_name_bearing" && status != "deferred" && status != "deprecated" {
 			return CloudDefaults{}, nil, fmt.Errorf("Databricks resource %q has unsupported support_status %q", name, status)
 		}
@@ -109,6 +111,11 @@ func loadDatabricksPlatformDefaults(contents []byte) (CloudDefaults, map[string]
 		styles := normalizeStyles(resource.Styles)
 		if len(styles) == 0 {
 			return CloudDefaults{}, nil, fmt.Errorf("supported Databricks resource %q requires supported styles", name)
+		}
+		for _, style := range styles {
+			if !isValidStyle(style) {
+				return CloudDefaults{}, nil, fmt.Errorf("Databricks resource %q has unsupported style %q", name, style)
+			}
 		}
 		if resource.MinLength < 0 || resource.MaxLength < 0 || resource.MaxLength > 0 && resource.MinLength > resource.MaxLength {
 			return CloudDefaults{}, nil, fmt.Errorf("Databricks resource %q has invalid length constraints", name)
