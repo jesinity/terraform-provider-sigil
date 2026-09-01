@@ -13,5 +13,6 @@ func (gcpCloudProfile) Defaults() (CloudDefaults, error) {
 		ResourceStyleOverrides: DefaultGCPResourceStyleOverrides(),
 		ResourceConstraints:    DefaultGCPResourceConstraints(),
 		RegionalResources:      DefaultGCPRegionalResources(),
+		ResourceClouds:         map[string][]string{},
 	}, nil
 }

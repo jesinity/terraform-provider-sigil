@@ -14,6 +14,39 @@ type CloudDefaults struct {
 	ResourceStyleOverrides map[string][]string
 	ResourceConstraints    map[string]ResourceConstraint
 	RegionalResources      map[string]bool
+	ResourceClouds         map[string][]string
+}
+
+// composeCloudDefaults overlays platform defaults on cloud defaults.  Every map is
+// copied so defaults returned to one provider instance can never affect another.
+func composeCloudDefaults(cloud, platform string) (CloudDefaults, error) {
+	base, err := DefaultCloudDefaults(cloud)
+	if err != nil {
+		return CloudDefaults{}, err
+	}
+	platformDefaults, err := DefaultPlatformDefaults(platform)
+	if err != nil {
+		return CloudDefaults{}, err
+	}
+	for key, value := range platformDefaults.RegionMap {
+		base.RegionMap[key] = value
+	}
+	for key, value := range platformDefaults.ResourceAcronyms {
+		base.ResourceAcronyms[key] = value
+	}
+	for key, value := range platformDefaults.ResourceStyleOverrides {
+		base.ResourceStyleOverrides[key] = append([]string(nil), value...)
+	}
+	for key, value := range platformDefaults.ResourceConstraints {
+		base.ResourceConstraints[key] = value
+	}
+	for key, value := range platformDefaults.RegionalResources {
+		base.RegionalResources[key] = value
+	}
+	for key, value := range platformDefaults.ResourceClouds {
+		base.ResourceClouds[key] = append([]string(nil), value...)
+	}
+	return base, nil
 }
 
 type CloudProfile interface {

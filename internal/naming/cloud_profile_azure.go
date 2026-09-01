@@ -81,6 +81,7 @@ func loadAzureCloudDefaults() (CloudDefaults, error) {
 		ResourceStyleOverrides: styleOverrides,
 		ResourceConstraints:    constraints,
 		RegionalResources:      regionalResources,
+		ResourceClouds:         map[string][]string{},
 	}, nil
 }
 
@@ -153,6 +154,7 @@ func copyCloudDefaults(in CloudDefaults) CloudDefaults {
 		ResourceStyleOverrides: copyStringSliceMap(in.ResourceStyleOverrides),
 		ResourceConstraints:    copyConstraintMap(in.ResourceConstraints),
 		RegionalResources:      copyBoolMap(in.RegionalResources),
+		ResourceClouds:         copyStringSliceMap(in.ResourceClouds),
 	}
 }
 

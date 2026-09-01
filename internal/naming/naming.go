@@ -24,6 +24,7 @@ var (
 
 type Config struct {
 	Cloud                            string
+	Platform                         string
 	OrgPrefix                        string
 	Project                          string
 	Env                              string
@@ -37,6 +38,7 @@ type Config struct {
 	ResourceConstraints              map[string]ResourceConstraint
 	IgnoreRegionForRegionalResources bool
 	RegionalResources                map[string]bool
+	ResourceClouds                   map[string][]string
 }
 
 type BuildInput struct {
@@ -79,8 +81,8 @@ func DefaultStylePriority() []string {
 
 func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	effective := cfg
-	if len(effective.RegionMap) == 0 || len(effective.ResourceAcronyms) == 0 || len(effective.ResourceStyleOverrides) == 0 || len(effective.ResourceConstraints) == 0 || len(effective.RegionalResources) == 0 {
-		defaults, err := DefaultCloudDefaults(effective.Cloud)
+	if len(effective.RegionMap) == 0 || len(effective.ResourceAcronyms) == 0 || len(effective.ResourceStyleOverrides) == 0 || len(effective.ResourceConstraints) == 0 || len(effective.RegionalResources) == 0 || len(effective.ResourceClouds) == 0 {
+		defaults, err := composeCloudDefaults(effective.Cloud, effective.Platform)
 		if err != nil {
 			return BuildResult{}, err
 		}
@@ -99,6 +101,9 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 		if len(effective.RegionalResources) == 0 {
 			effective.RegionalResources = defaults.RegionalResources
 		}
+		if len(effective.ResourceClouds) == 0 {
+			effective.ResourceClouds = defaults.ResourceClouds
+		}
 	}
 
 	regionCode := strings.TrimSpace(effective.RegionShortCode)
@@ -111,7 +116,10 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	}
 
 	resourceKey := strings.ToLower(strings.TrimSpace(in.Resource))
-	resourceLookupKeys := resourceLookupCandidates(effective.Cloud, resourceKey)
+	resourceLookupKeys := resourceLookupCandidates(effective.Cloud, effective.Platform, resourceKey)
+	if err := validateResourceCloud(resourceLookupKeys, effective.Cloud, effective.ResourceClouds); err != nil {
+		return BuildResult{}, err
+	}
 	resourceAcronym := strings.TrimSpace(in.Resource)
 	if resourceKey != "" {
 		if v, ok := lookupResourceAcronym(resourceLookupKeys, effective.ResourceAcronyms); ok && v != "" {
@@ -232,6 +240,22 @@ func BuildName(cfg Config, in BuildInput) (BuildResult, error) {
 	}, nil
 }
 
+func validateResourceCloud(resourceKeys []string, cloud string, resourceClouds map[string][]string) error {
+	for _, key := range resourceKeys {
+		allowed, ok := resourceClouds[key]
+		if !ok || len(allowed) == 0 {
+			continue
+		}
+		for _, candidate := range allowed {
+			if NormalizeCloud(candidate) == NormalizeCloud(cloud) {
+				return nil
+			}
+		}
+		return fmt.Errorf("resource %q is not supported with cloud %q; supported clouds: %s", key, cloud, strings.Join(allowed, ", "))
+	}
+	return nil
+}
+
 func canonicalComponentKey(key string) string {
 	switch strings.ToLower(strings.TrimSpace(key)) {
 	case "org_prefix", "org":
@@ -257,7 +281,7 @@ func normalizeStyle(style string) string {
 	return strings.ToLower(strings.TrimSpace(style))
 }
 
-func resourceLookupCandidates(cloud, resourceKey string) []string {
+func resourceLookupCandidates(cloud, platform, resourceKey string) []string {
 	resourceKey = strings.ToLower(strings.TrimSpace(resourceKey))
 	if resourceKey == "" {
 		return nil
@@ -276,6 +300,13 @@ func resourceLookupCandidates(cloud, resourceKey string) []string {
 	if NormalizeCloud(cloud) == CloudGCP && strings.HasPrefix(resourceKey, "google_") {
 		keys = append(keys, strings.TrimPrefix(resourceKey, "google_"))
 	}
+	if NormalizePlatform(platform) == PlatformDatabricks {
+		// The manifest deliberately owns this compatibility surface. Exact input
+		// wins, and an existing cloud key is never used as a platform alias.
+		if canonical := platformAliases(platform)[resourceKey]; canonical != "" && !isCloudResourceKey(cloud, resourceKey) {
+			keys = append(keys, canonical)
+		}
+	}
 
 	out := make([]string, 0, len(keys))
 	seen := map[string]bool{}
@@ -287,6 +318,23 @@ func resourceLookupCandidates(cloud, resourceKey string) []string {
 		out = append(out, key)
 	}
 	return out
+}
+
+func isCloudResourceKey(cloud, key string) bool {
+	defaults, err := DefaultCloudDefaults(cloud)
+	if err != nil {
+		return false
+	}
+	if _, ok := defaults.ResourceAcronyms[key]; ok {
+		return true
+	}
+	if _, ok := defaults.ResourceStyleOverrides[key]; ok {
+		return true
+	}
+	if _, ok := defaults.ResourceConstraints[key]; ok {
+		return true
+	}
+	return defaults.RegionalResources[key]
 }
 
 func lookupResourceAcronym(resourceKeys []string, acronyms map[string]string) (string, bool) {

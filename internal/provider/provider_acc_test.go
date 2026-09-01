@@ -503,10 +503,55 @@ data "sigil_mark" "storage" {
   what      = "azurerm_storage_account"
   qualifier = "analytics"
 }
+
 `),
 				ExpectError: regexp.MustCompile(`exceeds 24 characters`),
 			},
 		},
+	})
+}
+
+func TestDatabricksPlatformConfigurationPrecedence(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: `
+provider "sigil" {
+  config = { cloud = "aws", platform = "databricks", org_prefix = "base", env = "dev" }
+}
+
+provider "sigil" {
+  alias      = "top_level"
+  cloud      = "azure"
+  platform   = "databricks"
+  org_prefix = "top"
+  env        = "dev"
+}
+
+provider "sigil" {
+  alias = "override"
+  config = { cloud = "gcp", platform = "", org_prefix = "base", env = "dev" }
+  overrides = { platform = "databricks", org_prefix = "override" }
+}
+
+data "sigil_mark" "from_config" { what = "cluster" }
+
+data "sigil_mark" "from_top_level" {
+  provider = sigil.top_level
+  what = "cluster"
+}
+
+data "sigil_mark" "from_overrides" {
+  provider = sigil.override
+  what = "cluster"
+}
+`,
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttr("data.sigil_mark.from_config", "resource_acronym", "dbc"),
+				resource.TestCheckResourceAttr("data.sigil_mark.from_top_level", "resource_acronym", "dbc"),
+				resource.TestCheckResourceAttr("data.sigil_mark.from_overrides", "resource_acronym", "dbc"),
+			),
+		}},
 	})
 }
 

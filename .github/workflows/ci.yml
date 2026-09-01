@@ -30,5 +30,12 @@ jobs:
         with:
           terraform_version: 1.14.8
 
-      - name: Run tests
-        run: go test ./...
+      - name: Check generated documentation
+        run: |
+          go generate ./internal/naming
+          git diff --exit-code
+
+      - name: Run static checks and tests
+        run: |
+          go vet ./...
+          go test ./...

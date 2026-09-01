@@ -1,6 +1,219 @@
 package naming
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+)
+
+func TestDatabricksPlatformDefaultsAndAliases(t *testing.T) {
+	defaults, err := DefaultDefaults(CloudAWS, PlatformDatabricks)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if defaults.ResourceAcronyms["databricks_cluster"] != "dbc" {
+		t.Fatalf("expected Databricks cluster acronym, got %q", defaults.ResourceAcronyms["databricks_cluster"])
+	}
+	if _, ok := defaults.ResourceAcronyms["s3_bucket"]; !ok {
+		t.Fatal("expected cloud defaults to remain available")
+	}
+
+	canonical, err := BuildName(Config{Cloud: CloudAWS, Platform: PlatformDatabricks, OrgPrefix: "acme", Env: "prod"}, BuildInput{Resource: "databricks_cluster", Qualifier: "etl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias, err := BuildName(Config{Cloud: CloudAWS, Platform: PlatformDatabricks, OrgPrefix: "acme", Env: "prod"}, BuildInput{Resource: "cluster", Qualifier: "etl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canonical.ResourceAcronym != "dbc" || alias.ResourceAcronym != canonical.ResourceAcronym {
+		t.Fatalf("canonical and alias should resolve to dbc: %#v %#v", canonical, alias)
+	}
+
+	withoutPlatform, err := BuildName(Config{Cloud: CloudAWS, OrgPrefix: "acme", Env: "prod"}, BuildInput{Resource: "cluster", Qualifier: "etl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withoutPlatform.ResourceAcronym == "dbc" {
+		t.Fatal("Databricks alias must not resolve without the platform")
+	}
+}
+
+func TestDatabricksOverridesAzureAndDefaultsAreIsolated(t *testing.T) {
+	azure, err := DefaultCloudDefaults(CloudAzure)
+	if err != nil {
+		t.Fatal(err)
+	}
+	overlay, err := DefaultDefaults(CloudAzure, PlatformDatabricks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overlay.ResourceAcronyms["databricks_cluster"] != "dbc" {
+		t.Fatalf("platform must override Azure Databricks defaults, got %q", overlay.ResourceAcronyms["databricks_cluster"])
+	}
+	overlay.ResourceAcronyms["databricks_cluster"] = "changed"
+	overlay.ResourceStyleOverrides["databricks_cluster"][0] = "changed"
+	again, err := DefaultDefaults(CloudAzure, PlatformDatabricks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.ResourceAcronyms["databricks_cluster"] != "dbc" || again.ResourceStyleOverrides["databricks_cluster"][0] != StyleDashed {
+		t.Fatal("default maps or slices leaked between provider instances")
+	}
+	if len(azure.ResourceStyleOverrides["databricks_cluster"]) < 2 || azure.ResourceStyleOverrides["databricks_cluster"][1] != StylePascalDashed {
+		t.Fatal("Azure-only Databricks defaults must remain unchanged")
+	}
+}
+
+func TestDatabricksManifestValidation(t *testing.T) {
+	invalid := []byte(`{"provider":"databricks/databricks","provider_version":"1.129.0","resources":[{"name":"databricks_one","acronym":"same","naming_attribute":"name","scope":"workspace","styles":["dashed"],"support_status":"supported","constraint_status":"audited","documentation_url":"https://example.test"},{"name":"databricks_two","acronym":"same","naming_attribute":"name","scope":"workspace","styles":["dashed"],"support_status":"supported","constraint_status":"audited","documentation_url":"https://example.test"}]}`)
+	if _, _, err := loadDatabricksPlatformDefaults(invalid); err == nil {
+		t.Fatal("expected duplicate acronym error")
+	}
+}
+
+func TestDatabricksSupportedResources(t *testing.T) {
+	var manifest databricksManifest
+	if err := json.Unmarshal(databricksResourceDefinitionJSON, &manifest); err != nil {
+		t.Fatalf("decode embedded manifest: %v", err)
+	}
+
+	for _, resource := range manifest.Resources {
+		if resource.SupportStatus != "supported" {
+			continue
+		}
+		t.Run(resource.Name, func(t *testing.T) {
+			for _, cloud := range []string{CloudAWS, CloudAzure, CloudGCP} {
+				if len(resource.SupportedClouds) > 0 && !containsString(resource.SupportedClouds, cloud) {
+					continue
+				}
+				result, err := BuildName(Config{
+					Cloud:                            cloud,
+					Platform:                         PlatformDatabricks,
+					OrgPrefix:                        "acme",
+					Project:                          "lake",
+					Env:                              "prod",
+					RegionShortCode:                  "eu1",
+					IgnoreRegionForRegionalResources: true,
+				}, BuildInput{Resource: resource.Name, Qualifier: "test", StylePriority: resource.Styles})
+				if err != nil {
+					t.Fatalf("%s representative name failed: %v", cloud, err)
+				}
+				if result.ResourceAcronym != resource.Acronym {
+					t.Fatalf("%s: expected acronym %q, got %q", cloud, resource.Acronym, result.ResourceAcronym)
+				}
+				if result.Style != resource.Styles[0] {
+					t.Fatalf("%s: expected preferred style %q, got %q", cloud, resource.Styles[0], result.Style)
+				}
+				if resource.Regional && strings.Contains(result.Name, "eu1") {
+					t.Fatalf("%s: regional resource name should omit region: %q", cloud, result.Name)
+				}
+				if !resource.Regional && !strings.Contains(result.Name, "eu1") {
+					t.Fatalf("%s: global resource name should include region: %q", cloud, result.Name)
+				}
+			}
+
+			for _, alias := range resource.Aliases {
+				aliased, err := BuildName(Config{Cloud: CloudAWS, Platform: PlatformDatabricks, OrgPrefix: "acme", Env: "prod"}, BuildInput{Resource: alias})
+				if err != nil || aliased.ResourceAcronym != resource.Acronym {
+					t.Fatalf("alias %q did not resolve to %q: %#v, %v", alias, resource.Acronym, aliased, err)
+				}
+			}
+		})
+	}
+}
+
+func TestDatabricksProvisioningCloudCompatibility(t *testing.T) {
+	for _, test := range []struct {
+		cloud, resource string
+		wantError       bool
+	}{
+		{CloudAWS, "databricks_mws_workspaces", false}, {CloudGCP, "databricks_mws_workspaces", false},
+		{CloudAzure, "azurerm_databricks_workspace", false}, {CloudAzure, "databricks_mws_workspaces", true},
+		{CloudGCP, "databricks_mws_credentials", true}, {CloudAWS, "azurerm_databricks_workspace", true},
+	} {
+		_, err := BuildName(Config{Cloud: test.cloud, Platform: PlatformDatabricks, OrgPrefix: "acme", Env: "prod"}, BuildInput{Resource: test.resource})
+		if (err != nil) != test.wantError {
+			t.Errorf("%s on %s: err=%v, wantError=%t", test.resource, test.cloud, err, test.wantError)
+		}
+	}
+}
+
+func TestDatabricksProvisioningRegionMaps(t *testing.T) {
+	for _, test := range []struct{ cloud, region, want string }{
+		{CloudAWS, "us-east-1", "use1"}, {CloudAzure, "westeurope", "weu"}, {CloudGCP, "us-central1", "usc1"},
+	} {
+		resource := "databricks_mws_workspaces"
+		if test.cloud == CloudAzure {
+			resource = "azurerm_databricks_workspace"
+		}
+		result, err := BuildName(Config{Cloud: test.cloud, Platform: PlatformDatabricks, OrgPrefix: "acme", Env: "prod", Region: test.region, IgnoreRegionForRegionalResources: false}, BuildInput{Resource: resource})
+		if err != nil {
+			t.Fatalf("%s: %v", test.cloud, err)
+		}
+		if result.RegionCode != test.want || !strings.Contains(result.Name, test.want) {
+			t.Errorf("%s: expected region code %q in %q", test.cloud, test.want, result.Name)
+		}
+	}
+}
+
+func TestDatabricksAppConstraint(t *testing.T) {
+	_, err := BuildName(Config{Cloud: CloudAWS, Platform: PlatformDatabricks, OrgPrefix: "9invalid", Env: "prod"}, BuildInput{Resource: "databricks_app", Qualifier: "app"})
+	if err == nil {
+		t.Fatal("expected lowercase dashed Databricks App constraint error")
+	}
+}
+
+func TestDatabricksDocumentationCoversManifest(t *testing.T) {
+	contents, err := os.ReadFile("../../docs/databricks-resources.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest databricksManifest
+	if err := json.Unmarshal(databricksResourceDefinitionJSON, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	for _, resource := range manifest.Resources {
+		if resource.SupportStatus == "supported" && !strings.Contains(string(contents), "`"+resource.Name+"`") {
+			t.Fatalf("documentation is missing %q", resource.Name)
+		}
+	}
+}
+
+func TestDatabricksCatalogClassifiesV11290Resources(t *testing.T) {
+	contents, err := os.ReadFile("databricks_resource_catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog struct {
+		Provider        string `json:"provider"`
+		ProviderVersion string `json:"provider_version"`
+		Resources       []struct {
+			Name             string `json:"name"`
+			Category         string `json:"category"`
+			SupportStatus    string `json:"support_status"`
+			Reason           string `json:"reason"`
+			DocumentationURL string `json:"documentation_url"`
+		} `json:"resources"`
+	}
+	if err := json.Unmarshal(contents, &catalog); err != nil {
+		t.Fatal(err)
+	}
+	if catalog.Provider != "databricks/databricks" || catalog.ProviderVersion != "1.129.0" {
+		t.Fatalf("unexpected catalog source: %#v", catalog)
+	}
+	if len(catalog.Resources) != 170 {
+		t.Fatalf("expected 170 v1.129.0 resources, got %d", len(catalog.Resources))
+	}
+	seen := map[string]bool{}
+	for _, resource := range catalog.Resources {
+		if seen[resource.Name] || resource.Category == "" || resource.SupportStatus == "" || resource.Reason == "" || resource.DocumentationURL == "" {
+			t.Fatalf("incomplete or duplicate catalog entry: %#v", resource)
+		}
+		seen[resource.Name] = true
+	}
+}
 
 func TestDefaultCloudDefaultsAzure(t *testing.T) {
 	defaults, err := DefaultCloudDefaults(CloudAzure)

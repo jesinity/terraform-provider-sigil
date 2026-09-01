@@ -5,6 +5,7 @@ Terraform provider for consistent resource naming across multiple clouds.
 *  `aws` is the default cloud profile, including built-in data engineering and data science coverage for Athena, Glue, EMR, Kinesis, Lake Formation, Redshift, SageMaker, Bedrock, Bedrock Agents, and Bedrock AgentCore
 *  `azure` uses Azure CAF resource coverage
 *  `gcp` includes built-in resource coverage with strict constraints for supported resource families.
+*  `platform = "databricks"` overlays audited Databricks resource definitions on any cloud profile.
 
 ## Provider Configuration
 
@@ -13,7 +14,7 @@ terraform {
   required_providers {
     sigil = {
       source  = "jesinity/sigil"
-      version = "~> 1.4.0"
+      version = "~> 1.5.0"
     }
   }
 }
@@ -46,6 +47,42 @@ provider "sigil" {
   # style_priority = ["dashed", "pascal", "pascaldashed", "camel", "straight", "underscore"]
 }
 ```
+
+## Databricks platform
+
+Set `platform = "databricks"` with any supported cloud (`aws`, `azure`, or `gcp`) to add the audited Databricks naming profile. Cloud defaults load first, then platform defaults, and your `resource_acronyms` and `resource_style_overrides` remain the final overrides. Without `platform`, existing cloud behavior—including Azure CAF Databricks entries—does not change.
+
+```hcl
+provider "sigil" {
+  cloud      = "aws"
+  platform   = "databricks"
+  org_prefix = "acme"
+  project    = "lakehouse"
+  env        = "prod"
+  region     = "eu-west-1"
+}
+
+data "sigil_mark" "catalog" {
+  what      = "databricks_catalog" # canonical Terraform resource name
+  qualifier = "analytics"
+}
+```
+
+The same platform overlay works with Azure and GCP:
+
+```hcl
+provider "sigil" {
+  cloud = "azure"
+  platform = "databricks"
+  org_prefix = "acme"
+  env = "prod"
+  region = "westeurope"
+}
+
+# Or: cloud = "gcp", platform = "databricks", region = "europe-west1"
+```
+
+Prefix-free aliases such as `catalog`, `cluster`, and `job` are available only with the Databricks platform; canonical Terraform names always take precedence. Unity Catalog and SQL resources prefer lowercase underscore names. Notebook, directory, repository, and workspace-file names are path components, not complete paths. Sigil deliberately does not generate identities, email addresses, application IDs, tokens, or secret values. Platform settings use the normal merge order: `config` → top-level attributes → `overrides`. See [the generated audited Databricks coverage](docs/databricks-resources.md).
 
 For reuse across multiple provider aliases, you can supply a base `config` object and apply `overrides`. Precedence is: `config` -> top-level attributes -> `overrides`. Top-level attributes are a shorthand for the common case.
 
